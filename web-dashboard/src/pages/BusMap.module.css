@@ -1,0 +1,174 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  height: calc(100vh - 80px);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
+.header h1 {
+  font-size: 1.8rem;
+  margin-bottom: 4px;
+}
+
+.filterContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.filterSelect {
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  font-size: 0.9rem;
+  padding: 4px 8px;
+  cursor: pointer;
+  outline: none;
+}
+
+.filterSelect option {
+  background: var(--bg-main);
+  color: var(--text-main);
+}
+
+.mapContainer {
+  flex: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  min-height: 400px;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--danger);
+  text-align: center;
+  padding: 40px;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 40px;
+}
+
+.empty svg {
+  opacity: 0.5;
+}
+
+.popup {
+  font-size: 0.9rem;
+}
+
+.popup strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 1rem;
+}
+
+.popup p {
+  margin: 4px 0;
+  font-size: 0.85rem;
+}
+
+.timestamp {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+.stats {
+  display: flex;
+  gap: 16px;
+}
+
+.statCard {
+  flex: 1;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.statCard h3 {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin: 0;
+}
+
+.statCard p {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-main);
+}
+
+.busMapLayout {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(0, 1.8fr);
+  gap: 24px;
+  flex: 1;
+  min-height: calc(100vh - 112px);
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.busList {
+  max-height: 460px;
+  overflow-y: auto;
+}
+
+.busList .MuiListItemButton-root {
+  text-align: left;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 980px) {
+  .busMapLayout {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .stats {
+    grid-template-columns: 1fr;
+  }
+}
