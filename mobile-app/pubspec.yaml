@@ -1,0 +1,73 @@
+name: wicmic_transport
+description: Système de gestion du transport industriel WICMIC
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.2.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Localisation
+  flutter_localizations:
+    sdk: flutter
+
+  # Firebase
+  firebase_core: ^4.9.0
+  firebase_auth: ^6.5.1
+  cloud_firestore: ^6.4.1
+  firebase_database: ^12.4.1
+
+  # Navigation
+  go_router: ^14.8.1
+
+  # State Management
+  provider: ^6.1.5+1
+
+  # UI
+  fl_chart: ^0.69.2
+  data_table_2: ^2.7.2
+  cached_network_image: ^3.4.1
+
+  # Carte & GPS
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  geolocator: ^12.0.0
+
+  # Export Excel
+  excel: ^4.0.6
+  path_provider: ^2.1.4
+  share_plus: ^10.0.3
+
+  # Utils
+  intl: ^0.20.2
+
+  # Icons iOS
+  cupertino_icons: ^1.0.9
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icon/
+
+# Configuration de l'icône d'application (package flutter_launcher_icons)
+# Commande à lancer après avoir placé le fichier assets/icon/icon.png :
+#   flutter pub get
+#   flutter pub run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#0D47A1"
+  adaptive_icon_foreground: "assets/icon/icon.png"

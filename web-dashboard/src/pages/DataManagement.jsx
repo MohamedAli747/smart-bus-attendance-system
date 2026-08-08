@@ -80,7 +80,7 @@ const BUS_COLUMN_LABELS = {
   status: 'Status',
 };
 
-const CONDUCTEUR_COLUMNS = ['nom', 'role', 'dep', 'login', 'type_chauffeur', 'bus_id', 'sous_dep1', 'sous_dep2', 'roulement', 'actif', 'horaire'];
+const CONDUCTEUR_COLUMNS = ['nom', 'role', 'dep', 'login', 'type_chauffeur', 'bus_id', 'sous_dep1', 'sous_dep2', 'roulement', 'actif', 'privilegie', 'horaire'];
 const CONDUCTEUR_COLUMN_LABELS = {
   nom: 'Name',
   role: 'Role',
@@ -92,6 +92,7 @@ const CONDUCTEUR_COLUMN_LABELS = {
   sous_dep2: 'Sub Dept 2',
   roulement: 'Rotation',
   actif: 'Active',
+  privilegie: 'Privileged Access (self-assign bus/circuit)',
   horaire: 'Schedule',
 };
 
@@ -751,7 +752,7 @@ export default function DataManagement({ collectionName, title }) {
                     )}
                     {columns.map((col) => (
                       <Grid item xs={12} sm={6} key={col}>
-                        {(collectionName === 'conducteurs' && col === 'actif') || (collectionName === 'salaries' && col === 'active') ? (
+                        {(collectionName === 'conducteurs' && (col === 'actif' || col === 'privilegie')) || (collectionName === 'salaries' && col === 'active') ? (
                           <FormControlLabel
                             control={
                               <Checkbox
