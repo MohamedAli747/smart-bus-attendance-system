@@ -39,7 +39,7 @@ function loadImageElement(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Could not read the image file.'));
+    img.onerror = () => reject(new Error("Impossible de lire le fichier image."));
     img.src = src;
   });
 }
@@ -48,7 +48,7 @@ function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error('Failed to read the selected file.'));
+    reader.onerror = () => reject(new Error('Échec de la lecture du fichier sélectionné.'));
     reader.readAsDataURL(file);
   });
 }
@@ -113,7 +113,7 @@ export default function FaceEnrollment() {
   useEffect(() => {
   const loadModels = async () => {
     try {
-      setStatus('Loading face detection models...');
+      setStatus('Chargement des modèles de détection faciale...');
       
       // 1. Load face-api.js models
       await Promise.all([
@@ -123,15 +123,15 @@ export default function FaceEnrollment() {
         faceapi.nets.faceExpressionNet.loadFromUri(FACE_API_MODEL_URL),
       ]);
 
-      setStatus('Downloading TFLite embedding model...');
+      setStatus("Téléchargement du modèle d'embedding TFLite...");
       tflite.setWasmPath(TFLITE_WASM_PATH);
       const session = await tflite.loadTFLiteModel(TFLITE_MODEL_URL);
       interpreterRef.current = session;
       setModelsLoaded(true);
-      setStatus('Models loaded successfully');
+      setStatus('Modèles chargés avec succès');
     } catch (err) {
       console.error('Model loading error:', err);
-      setError(`Failed to load models: ${err.message}`);
+      setError(`Échec du chargement des modèles : ${err.message}`);
       setStatus('');
     }
   };
@@ -153,7 +153,7 @@ export default function FaceEnrollment() {
         const emps = docs.docs.map(d => ({ id: d.id, ...d.data() }));
         setEmployees(emps);
       } catch (err) {
-        setError(`Failed to load employees: ${err.message}`);
+        setError(`Échec du chargement des employés : ${err.message}`);
       }
     };
 
@@ -179,14 +179,14 @@ export default function FaceEnrollment() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setCameraActive(true);
-        setStatus('Camera started');
+        setStatus('Caméra démarrée');
         await videoRef.current.play().catch(err => {
           console.error('Video play error:', err);
-          setError(`Video play error: ${err.message}`);
+          setError(`Erreur de lecture vidéo : ${err.message}`);
         });
       }
     } catch (err) {
-      setError(`Camera access denied: ${err.message}`);
+      setError(`Accès à la caméra refusé : ${err.message}`);
     }
   };
 
@@ -194,16 +194,30 @@ export default function FaceEnrollment() {
     capturingRef.current = false; // stop any running capture loop
     if (videoRef.current && videoRef.current.srcObject) {
       videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
       setCameraActive(false);
       setCapturing(false);
       setStatus('');
     }
   };
 
+  // Coupe la caméra (et arrête toute capture en cours) quand on quitte la page,
+  // pour éviter que le flux webcam reste actif et cause des bugs en passant
+  // sur un autre tableau de bord.
+  useEffect(() => {
+    return () => {
+      capturingRef.current = false;
+      if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
+      }
+    };
+  }, []);
+
   // Extract 512-dim embedding using w600k_mbf TFLite (NHWC [1, 112, 112, 3])
   const getEmbedding = async (faceCanvas) => {
     if (!interpreterRef.current) {
-      throw new Error('TFLite model is not initialized.');
+      throw new Error("Le modèle TFLite n'est pas initialisé.");
     }
 
     const inputCanvas = document.createElement('canvas');
@@ -234,7 +248,7 @@ export default function FaceEnrollment() {
     } else if (typeof output === 'object' && output !== null) {
       outputTensor = Object.values(output)[0];
     } else {
-      throw new Error('Unexpected TFLite model output format');
+      throw new Error("Format de sortie du modèle TFLite inattendu");
     }
 
     const embeddingArray = Array.from(await outputTensor.data());
@@ -247,7 +261,7 @@ export default function FaceEnrollment() {
 
     const norm = Math.sqrt(embeddingArray.reduce((sum, val) => sum + val * val, 0));
     if (norm === 0) {
-      throw new Error('Calculated zero norm for embedding vector');
+      throw new Error("Norme nulle calculée pour le vecteur d'embedding");
     }
 
     return embeddingArray.map(val => val / norm);
@@ -275,7 +289,7 @@ export default function FaceEnrollment() {
       }
 
       if (detections.length > 1) {
-        setError('Multiple faces detected. Please ensure only one person is in frame.');
+        setError('Plusieurs visages détectés. Veuillez vous assurer qu\'une seule personne est dans le cadre.');
         return null;
       }
 
@@ -297,14 +311,14 @@ export default function FaceEnrollment() {
       return embedding;
     } catch (err) {
       console.error('Error detecting face:', err);
-      setError(`Detection error: ${err.message}`);
+      setError(`Erreur de détection : ${err.message}`);
       return null;
     }
   };
 
   const captureSamples = async () => {
     if (!selectedMatricule || !cameraActive || !modelsLoaded) {
-      setError('Please select a matricule and start the camera');
+      setError('Veuillez sélectionner un matricule et démarrer la caméra');
       return;
     }
 
@@ -315,7 +329,7 @@ export default function FaceEnrollment() {
     const newSamples = [];
     const captureInterval = 800; // 800ms between captures (faster than Pi)
 
-    setStatus(`Capturing ${NUM_SAMPLES} samples. Look at the camera...`);
+    setStatus(`Capture de ${NUM_SAMPLES} échantillons. Regardez la caméra...`);
 
     let consecutiveStable = 0;
     const requiredStable = 2;
@@ -329,24 +343,24 @@ export default function FaceEnrollment() {
           newSamples.push(descriptor);
           setSamples([...newSamples]);
           setStatus(
-            `Captured ${newSamples.length}/${NUM_SAMPLES} samples. Keep steady...`
+            `${newSamples.length}/${NUM_SAMPLES} échantillons capturés. Restez immobile...`
           );
           consecutiveStable = 0;
           await new Promise(resolve => setTimeout(resolve, captureInterval));
         }
       } else {
         consecutiveStable = 0;
-        setStatus('No face detected. Please look at the camera...');
+        setStatus('Aucun visage détecté. Veuillez regarder la caméra...');
       }
 
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     if (newSamples.length >= NUM_SAMPLES) {
-      setStatus('✅ All samples captured! Review and save.');
+      setStatus('✅ Tous les échantillons capturés ! Vérifiez et enregistrez.');
       setSaveDialogOpen(true);
     } else if (newSamples.length > 0) {
-      setError(`Only captured ${newSamples.length}/${NUM_SAMPLES} samples. Try again.`);
+      setError(`Seulement ${newSamples.length}/${NUM_SAMPLES} échantillons capturés. Réessayez.`);
     }
 
     capturingRef.current = false;
@@ -362,23 +376,23 @@ export default function FaceEnrollment() {
 
   const processImageFile = async (file) => {
     if (!modelsLoaded) {
-      setError('Models are still loading. Please wait.');
+      setError('Les modèles sont encore en cours de chargement. Veuillez patienter.');
       return;
     }
 
     if (!file.type.startsWith('image/')) {
-      setError('Please upload an image file (PNG, JPG, etc.).');
+      setError('Veuillez téléverser un fichier image (PNG, JPG, etc.).');
       return;
     }
 
     if (file.size > MAX_UPLOAD_BYTES) {
-      setError('Image is too large. Maximum size is 5 MB.');
+      setError("L'image est trop volumineuse. La taille maximale est de 5 Mo.");
       return;
     }
 
     clearUploadState();
     setError('');
-    setStatus('Processing image...');
+    setStatus("Traitement de l'image...");
     setUploadedFile(file);
     setUploadProcessing(true);
 
@@ -394,21 +408,21 @@ export default function FaceEnrollment() {
       );
 
       if (detections.length === 0) {
-        throw new Error('No face detected in the uploaded image. Try a clearer front-facing photo.');
+        throw new Error("Aucun visage détecté dans l'image téléversée. Essayez une photo de face plus claire.");
       }
 
       if (detections.length > 1) {
-        throw new Error('Multiple faces detected. Please upload an image with only one face.');
+        throw new Error("Plusieurs visages détectés. Veuillez téléverser une image avec un seul visage.");
       }
 
       const faceCanvas = cropFaceCanvas(detectionCanvas, detections[0].box);
       const embedding = await getEmbedding(faceCanvas);
 
       setUploadEmbedding(embedding);
-      setStatus('✓ Face detected in image');
+      setStatus('✓ Visage détecté dans l\'image');
     } catch (err) {
       console.error('Error processing image:', err);
-      setError(`Error processing image: ${err.message}`);
+      setError(`Erreur lors du traitement de l'image : ${err.message}`);
       clearUploadState();
       setStatus('');
     } finally {
@@ -443,7 +457,7 @@ export default function FaceEnrollment() {
 
   const saveEnrollment = async () => {
     if (!selectedMatricule) {
-      setError('Please select a matricule');
+      setError('Veuillez sélectionner un matricule');
       return;
     }
 
@@ -451,7 +465,7 @@ export default function FaceEnrollment() {
 
     if (tabMode === 'webcam') {
       if (samples.length === 0) {
-        setError('No samples to save');
+        setError('Aucun échantillon à enregistrer');
         return;
       }
 
@@ -467,7 +481,7 @@ export default function FaceEnrollment() {
       embeddingToSave = avgDescriptor.map(val => val / norm);
     } else {
       if (!uploadEmbedding) {
-        setError('No embedding extracted from uploaded image');
+        setError("Aucun embedding extrait de l'image téléversée");
         return;
       }
       embeddingToSave = uploadEmbedding;
@@ -490,7 +504,7 @@ export default function FaceEnrollment() {
       });
 
       setSuccess(true);
-      setStatus(`✅ Successfully enrolled ${selectedMatricule}`);
+      setStatus(`✅ ${selectedMatricule} enrôlé avec succès`);
       setSaveDialogOpen(false);
 
       // Reset states
@@ -503,7 +517,7 @@ export default function FaceEnrollment() {
         setStatus('');
       }, 3000);
     } catch (err) {
-      setError(`Failed to save enrollment: ${err.message}`);
+      setError(`Échec de l'enregistrement de l'enrôlement : ${err.message}`);
       console.error(err);
     } finally {
       setLoading(false);
@@ -528,10 +542,10 @@ export default function FaceEnrollment() {
             <Camera size={32} color="#8e24aa" />
             <Box>
               <Typography variant="h4" fontWeight={700}>
-                Face Enrollment
+                Enrôlement facial
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Capture face samples via webcam or upload an image (${EMBEDDING_DIM}-dim TFLite embedding model)
+                Capturez des échantillons via webcam ou téléversez une image
               </Typography>
             </Box>
           </Box>
@@ -551,7 +565,7 @@ export default function FaceEnrollment() {
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <CircularProgress size={24} />
-              <Typography>Loading face detection and embedding models...</Typography>
+              <Typography>Chargement des modèles de détection faciale et d'embedding...</Typography>
             </Box>
           </CardContent>
         </Card>
@@ -564,12 +578,12 @@ export default function FaceEnrollment() {
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom fontWeight={700}>
-                  Enrollment Setup
+                  Configuration de l'enrôlement
                 </Typography>
 
                 {/* Employee Selection */}
                 <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>
-                  1. Select Employee
+                  1. Sélectionner l'employé
                 </Typography>
                 <TextField
                   select
@@ -581,7 +595,7 @@ export default function FaceEnrollment() {
                   disabled={cameraActive || capturing}
                   SelectProps={{ native: true }}
                 >
-                  <option value="">Choose matricule...</option>
+                  <option value="">Choisir un matricule...</option>
                   {employees.map(emp => (
                     <option key={emp.matricule || emp.id} value={emp.matricule || emp.id}>
                       {`${emp.matricule || emp.id} - ${emp.prenom || ''} ${emp.nom || ''}`}
@@ -600,7 +614,7 @@ export default function FaceEnrollment() {
 
                 {/* Camera Controls */}
                 <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>
-                  2. {tabMode === 'webcam' ? 'Start Camera' : 'Upload Image'}
+                  2. {tabMode === 'webcam' ? 'Démarrer la caméra' : "Téléverser l'image"}
                 </Typography>
                 {tabMode === 'webcam' && (
                   <Box sx={{ display: 'flex', gap: 1 }}>
@@ -610,7 +624,7 @@ export default function FaceEnrollment() {
                       disabled={!selectedMatricule || cameraActive || capturing}
                       fullWidth
                     >
-                      Start Camera
+                      Démarrer la caméra
                     </Button>
                     <Button
                       variant="outlined"
@@ -618,14 +632,14 @@ export default function FaceEnrollment() {
                       disabled={!cameraActive}
                       fullWidth
                     >
-                      Stop
+                      Arrêter
                     </Button>
                   </Box>
                 )}
 
                 {/* Capture Button */}
                 <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>
-                  3. {tabMode === 'webcam' ? 'Capture Samples' : 'Save Enrollment'}
+                  3. {tabMode === 'webcam' ? 'Capturer les échantillons' : "Enregistrer l'enrôlement"}
                 </Typography>
                 {tabMode === 'webcam' ? (
                   <Button
@@ -638,17 +652,17 @@ export default function FaceEnrollment() {
                     {capturing ? (
                       <>
                         <CircularProgress size={20} sx={{ mr: 1 }} />
-                        Capturing...
+                        Capture en cours...
                       </>
                     ) : samples.length > 0 ? (
                       <>
                         <Check size={20} sx={{ mr: 1 }} />
-                        Captured {samples.length}/{NUM_SAMPLES}
+                        {samples.length}/{NUM_SAMPLES} capturés
                       </>
                     ) : (
                       <>
                         <Camera size={20} sx={{ mr: 1 }} />
-                        Start Capture
+                        Démarrer la capture
                       </>
                     )}
                   </Button>
@@ -663,12 +677,12 @@ export default function FaceEnrollment() {
                     {uploadEmbedding ? (
                       <>
                         <Check size={20} sx={{ mr: 1 }} />
-                        Save Enrollment
+                        Enregistrer l'enrôlement
                       </>
                     ) : (
                       <>
                         <Upload size={20} sx={{ mr: 1 }} />
-                        Upload Image First
+                        Téléverser une image d'abord
                       </>
                     )}
                   </Button>
@@ -678,7 +692,7 @@ export default function FaceEnrollment() {
                 {tabMode === 'webcam' && samples.length > 0 && (
                   <Box sx={{ mt: 2 }}>
                     <Typography variant="caption" color="text.secondary">
-                      Samples captured: {samples.length}/{NUM_SAMPLES}
+                      Échantillons capturés : {samples.length}/{NUM_SAMPLES}
                     </Typography>
                     <LinearProgress
                       variant="determinate"
@@ -688,18 +702,6 @@ export default function FaceEnrollment() {
                   </Box>
                 )}
 
-                {/* Model Info */}
-                <Box sx={{ mt: 3, p: 2, bgcolor: '#f5f5f5', borderRadius: 1 }}>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    🧠 <strong>Model:</strong> Custom TFLite embedding model
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    📊 <strong>Embedding:</strong> {EMBEDDING_DIM}-dimensional vector
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    ✅ <strong>Compatible with:</strong> Pi recognition system
-                  </Typography>
-                </Box>
               </CardContent>
             </Card>
           </Grid>
@@ -721,8 +723,8 @@ export default function FaceEnrollment() {
                     }}
                     disabled={cameraActive || capturing || loading || uploadProcessing}
                   >
-                    <Tab label="Webcam Capture" value="webcam" />
-                    <Tab label="Upload Image" value="upload" />
+                    <Tab label="Capture webcam" value="webcam" />
+                    <Tab label="Téléverser une image" value="upload" />
                   </Tabs>
                 </Box>
 
@@ -730,7 +732,7 @@ export default function FaceEnrollment() {
                 {tabMode === 'webcam' && (
                   <Box>
                     <Typography variant="h6" gutterBottom fontWeight={700}>
-                      Camera Feed
+                      Flux caméra
                     </Typography>
                     <Box
                       sx={{
@@ -761,7 +763,7 @@ export default function FaceEnrollment() {
                       {!cameraActive && (
                         <Box sx={{ textAlign: 'center', color: '#999' }}>
                           <Camera size={48} sx={{ mb: 1, opacity: 0.5 }} />
-                          <Typography variant="body2">Camera inactive</Typography>
+                          <Typography variant="body2">Caméra inactive</Typography>
                         </Box>
                       )}
                     </Box>
@@ -770,7 +772,7 @@ export default function FaceEnrollment() {
                     <canvas ref={canvasRef} style={{ display: 'none' }} />
 
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-                      ✓ Position your face in the center and keep still while capturing {NUM_SAMPLES} samples
+                      ✓ Positionnez votre visage au centre et restez immobile pendant la capture de {NUM_SAMPLES} échantillons
                     </Typography>
                   </Box>
                 )}
@@ -779,7 +781,7 @@ export default function FaceEnrollment() {
                 {tabMode === 'upload' && (
                   <Box>
                     <Typography variant="h6" gutterBottom fontWeight={700}>
-                      Upload Face Image
+                      Téléverser une photo de visage
                     </Typography>
                     <Box
                       onClick={() => !uploadProcessing && fileInputRef.current?.click()}
@@ -820,9 +822,9 @@ export default function FaceEnrollment() {
                       ) : (
                         <Box sx={{ textAlign: 'center', color: '#666' }}>
                           <Upload size={48} sx={{ mb: 1, opacity: 0.7 }} />
-                          <Typography variant="body2">Click or drag to upload image</Typography>
+                          <Typography variant="body2">Cliquez ou glissez pour téléverser une image</Typography>
                           <Typography variant="caption" color="text.secondary">
-                            PNG, JPG up to 5MB
+                            PNG, JPG jusqu'à 5 Mo
                           </Typography>
                         </Box>
                       )}
@@ -840,7 +842,7 @@ export default function FaceEnrollment() {
                       <Box sx={{ mt: 2 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <CircularProgress size={20} />
-                          <Typography variant="caption">Processing image...</Typography>
+                          <Typography variant="caption">Traitement de l'image...</Typography>
                         </Box>
                       </Box>
                     )}
@@ -849,7 +851,7 @@ export default function FaceEnrollment() {
                       <Box sx={{ mt: 2 }}>
                         <Chip
                           icon={<Check size={16} />}
-                          label={`Face detected - Ready to save`}
+                          label={`Visage détecté - Prêt à enregistrer`}
                           color="success"
                           variant="outlined"
                           fullWidth
@@ -858,7 +860,7 @@ export default function FaceEnrollment() {
                     )}
 
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-                      ✓ Upload a clear face photo for best results
+                      ✓ Téléversez une photo de visage nette pour de meilleurs résultats
                     </Typography>
                   </Box>
                 )}
@@ -870,37 +872,34 @@ export default function FaceEnrollment() {
 
       {/* Save Dialog */}
       <Dialog open={saveDialogOpen} onClose={() => !loading && setSaveDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Confirm Enrollment</DialogTitle>
+        <DialogTitle>Confirmer l'enrôlement</DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mt: 2 }}>
-            Ready to save enrollment for:
+            Prêt à enregistrer l'enrôlement pour :
           </Typography>
           <Typography variant="h6" color="primary" sx={{ my: 1 }}>
             {selectedEmployee ? `${selectedEmployee.prenom} ${selectedEmployee.nom}` : selectedMatricule}
           </Typography>
           {tabMode === 'webcam' ? (
             <Typography variant="body2" color="text.secondary">
-              Samples captured: <strong>{samples.length}/{NUM_SAMPLES}</strong>
+              Échantillons capturés : <strong>{samples.length}/{NUM_SAMPLES}</strong>
             </Typography>
           ) : (
             <Typography variant="body2" color="text.secondary">
-              Image source: <strong>Uploaded file</strong>
+              Source de l'image : <strong>Fichier téléversé</strong>
             </Typography>
           )}
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Embedding dimension: <strong>{EMBEDDING_DIM} (Custom TFLite model)</strong>
-          </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSaveDialogOpen(false)} disabled={loading}>
-            {tabMode === 'webcam' ? 'Retake Samples' : 'Change Image'}
+            {tabMode === 'webcam' ? 'Reprendre les échantillons' : "Changer d'image"}
           </Button>
           <Button
             onClick={saveEnrollment}
             variant="contained"
             disabled={loading}
           >
-            {loading ? <CircularProgress size={24} /> : 'Save Enrollment'}
+            {loading ? <CircularProgress size={24} /> : "Enregistrer l'enrôlement"}
           </Button>
         </DialogActions>
       </Dialog>

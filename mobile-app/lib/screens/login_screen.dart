@@ -76,6 +76,98 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _showForgotPasswordDialog(BuildContext context) async {
+    final resetEmailCtrl = TextEditingController(text: _emailCtrl.text);
+    final resetFormKey = GlobalKey<FormState>();
+    bool sending = false;
+    String? resetError;
+    String? resetSuccess;
+
+    final auth = context.read<AuthService>();
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Mot de passe oublié'),
+              content: Form(
+                key: resetFormKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Saisissez votre adresse e-mail. Un lien de réinitialisation vous sera envoyé.',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: resetEmailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(
+                        labelText: 'Adresse email',
+                        prefixIcon: Icon(Icons.email_outlined),
+                      ),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Email requis';
+                        if (!v.contains('@')) return 'Email invalide';
+                        return null;
+                      },
+                    ),
+                    if (resetError != null) ...[
+                      const SizedBox(height: 10),
+                      Text(resetError!, style: const TextStyle(color: Colors.red, fontSize: 13)),
+                    ],
+                    if (resetSuccess != null) ...[
+                      const SizedBox(height: 10),
+                      Text(resetSuccess!, style: const TextStyle(color: Colors.green, fontSize: 13)),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: sending ? null : () => Navigator.pop(dialogCtx),
+                  child: const Text('Fermer'),
+                ),
+                FilledButton(
+                  onPressed: sending
+                      ? null
+                      : () async {
+                          if (!resetFormKey.currentState!.validate()) return;
+                          setDialogState(() {
+                            sending = true;
+                            resetError = null;
+                            resetSuccess = null;
+                          });
+                          final err = await auth.sendPasswordResetEmail(resetEmailCtrl.text);
+                          setDialogState(() {
+                            sending = false;
+                            if (err != null) {
+                              resetError = err;
+                            } else {
+                              resetSuccess = 'E-mail envoyé. Vérifiez votre boîte de réception.';
+                            }
+                          });
+                        },
+                  child: sending
+                      ? const SizedBox(
+                          width: 18, height: 18,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text('Envoyer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -199,7 +291,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text('Connexion privilège : choisissez vous-même votre bus et votre circuit après connexion.',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 10.5, color: Colors.grey[500])),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: _loading ? null : () => _showForgotPasswordDialog(context),
+                      child: const Text('Mot de passe oublié ?',
+                          style: TextStyle(fontSize: 13)),
+                    ),
+                    const SizedBox(height: 4),
                     Text('© WICMIC Group — Système de transport',
                         style: TextStyle(fontSize: 11, color: Colors.grey[400])),
                   ]),

@@ -65,6 +65,16 @@ String _dateKeyOf(Map<String, dynamic> rec) {
   return '';
 }
 
+/// On ne garde que deux méthodes de pointage affichées : reconnaissance
+/// faciale (automatique, valeurs 'face'/'reconnaissance_faciale' selon la
+/// source) ou manuel. Les anciennes valeurs (badge_nfc, biométrique...) sont
+/// regroupées avec 'manuel'.
+String _normMethode(String? raw) {
+  const facial = {'face', 'reconnaissance_faciale', 'facial', 'reconnaissance'};
+  if (raw != null && facial.contains(raw)) return 'reconnaissance_faciale';
+  return 'manuel';
+}
+
 /// Fusionne 'attendance' (auto, clé = matricule) + 'manual_checkins' du jour
 /// (clé = salarieId Firestore, converti en matricule) pour le bus donné.
 /// Utilisé par toutes les vues de présence de l'écran chauffeur.
@@ -527,27 +537,15 @@ class _SalarieCard extends StatelessWidget {
   });
 
   IconData _methodeIcon() {
-    switch (methode) {
-      case 'badge_nfc': return Icons.nfc;
-      case 'biometrique': return Icons.fingerprint;
-      default: return Icons.front_hand;
-    }
+    return _normMethode(methode) == 'reconnaissance_faciale' ? Icons.face : Icons.front_hand;
   }
 
   Color _methodeColor() {
-    switch (methode) {
-      case 'badge_nfc': return Colors.blue;
-      case 'biometrique': return Colors.purple;
-      default: return Colors.orange;
-    }
+    return _normMethode(methode) == 'reconnaissance_faciale' ? Colors.teal : Colors.orange;
   }
 
   String _methodeLabel() {
-    switch (methode) {
-      case 'badge_nfc': return 'Badge NFC';
-      case 'biometrique': return 'Biométrique';
-      default: return 'Manuel';
-    }
+    return _normMethode(methode) == 'reconnaissance_faciale' ? 'Reconnaissance faciale' : 'Manuel';
   }
 
   @override
@@ -576,27 +574,32 @@ class _SalarieCard extends StatelessWidget {
             Stack(
               clipBehavior: Clip.none,
               children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: isPresent
-                      ? (fievre
-                          ? Colors.red.shade100
-                          : Colors.green.shade100)
-                      : const Color(0xFF1565C0).withOpacity(0.1),
-                  child: isPresent
-                      ? Icon(fievre ? Icons.thermostat : _methodeIcon(),
-                          color: fievre ? Colors.red : _methodeColor(),
-                          size: 20)
-                      : Text(
-                          nomComplet.isNotEmpty
-                              ? nomComplet[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: Color(0xFF1565C0)),
-                        ),
-                ),
+                // Photo du visage enrôlé (face_enrollments/{matricule}.photo_url)
+                // uniquement pour une présence détectée par reconnaissance faciale ;
+                // le pointage manuel garde l'avatar habituel (initiale/icône).
+                (isPresent && !fievre && _normMethode(methode) == 'reconnaissance_faciale' && matricule.isNotEmpty)
+                    ? _FacePhotoCircle(matricule: matricule, radius: 22, fallbackIcon: _methodeIcon(), color: _methodeColor())
+                    : CircleAvatar(
+                        radius: 22,
+                        backgroundColor: isPresent
+                            ? (fievre
+                                ? Colors.red.shade100
+                                : Colors.green.shade100)
+                            : const Color(0xFF1565C0).withOpacity(0.1),
+                        child: isPresent
+                            ? Icon(fievre ? Icons.thermostat : _methodeIcon(),
+                                color: fievre ? Colors.red : _methodeColor(),
+                                size: 20)
+                            : Text(
+                                nomComplet.isNotEmpty
+                                    ? nomComplet[0].toUpperCase()
+                                    : '?',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: Color(0xFF1565C0)),
+                              ),
+                      ),
                 // ── Indicateur ● (vert = présent, gris = absent) ──
                 Positioned(
                   bottom: -2,
@@ -745,6 +748,44 @@ class _SalarieCard extends StatelessWidget {
   }
 }
 
+// ── Photo de visage enrôlée (Firestore face_enrollments/{matricule}.photo_url) ─
+// Utilisée uniquement pour les présences détectées par reconnaissance faciale ;
+// simple FutureBuilder, aucun état supplémentaire à gérer dans l'écran.
+class _FacePhotoCircle extends StatelessWidget {
+  final String matricule;
+  final double radius;
+  final IconData fallbackIcon;
+  final Color color;
+  const _FacePhotoCircle({
+    required this.matricule,
+    required this.fallbackIcon,
+    required this.color,
+    this.radius = 22,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget fallback() => CircleAvatar(
+          radius: radius,
+          backgroundColor: color.withOpacity(0.15),
+          child: Icon(fallbackIcon, color: color, size: radius * 0.9),
+        );
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('face_enrollments').doc(matricule).get(),
+      builder: (context, snap) {
+        final url = (snap.data?.data() as Map<String, dynamic>?)?['photo_url'] as String?;
+        if (url == null || url.isEmpty) return fallback();
+        return CircleAvatar(
+          radius: radius,
+          backgroundColor: color.withOpacity(0.15),
+          backgroundImage: NetworkImage(url),
+          onBackgroundImageError: (_, __) {},
+        );
+      },
+    );
+  }
+}
+
 // ── Dialog pointage — écrit dans Realtime Database ────────────────────────────
 class _PointageDialog extends StatefulWidget {
   final String salarieId, nomSalarie, busId;
@@ -762,8 +803,6 @@ class _PointageDialog extends StatefulWidget {
 }
 
 class _PointageDialogState extends State<_PointageDialog> {
-  final _tempCtrl = TextEditingController(text: '36.6');
-  String _methode = 'manuel';
   bool _loading = false;
   Position? _position;
   bool _gpsLoading = false;
@@ -794,47 +833,29 @@ class _PointageDialogState extends State<_PointageDialog> {
     try {
       final now = DateTime.now();
 
-      final temperature =
-          double.tryParse(_tempCtrl.text.replaceAll(',', '.')) ?? 36.6;
       final matricule = widget.salarieData['matricule']?.toString() ?? '';
       final dateStr =
           '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
       final timeStr =
           '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}';
 
-      // Écriture dans RTDB : manual_checkins/<date>/<salarieId>
-      // ('presences' n'est plus utilisé — remplacé par attendance/manual_checkins/alerts)
+      // Pointage manuel : uniquement la position est enregistrée. La méthode
+      // est toujours 'manuel' (fixe) et aucune température n'est demandée au
+      // chauffeur — seule la reconnaissance faciale (caméra) mesure la
+      // température et peut déclencher une alerte fièvre.
       await _rtdb.ref('manual_checkins/$_todayKey/${widget.salarieId}').set({
         'status': 'present',
         'date': dateStr,
         'time': timeStr,
         'timestamp': now.toIso8601String(),
-        'temperature': temperature,
         'gps_lat': _position?.latitude ?? 0.0,
         'gps_lng': _position?.longitude ?? 0.0,
         'gps_accuracy': _position?.accuracy ?? 0.0,
-        'identification': _methode,
+        'identification': 'manuel',
         'bus_id': widget.busId,
         'nom': widget.nomSalarie,
         'matricule': matricule,
       });
-
-      // Si fièvre détectée, on pousse aussi une alerte dans 'alerts'
-      // (cohérent avec le reste du système : le dashboard admin lit 'alerts'
-      // pour le suivi des températures, qu'elles viennent du pointage
-      // automatique ou manuel).
-      if (temperature > 37.5) {
-        await _rtdb.ref('alerts/$_todayKey').push().set({
-          'alert_type': 'fever',
-          'date': dateStr,
-          'time': timeStr,
-          'timestamp': now.toIso8601String(),
-          'temperature': temperature,
-          'bus_id': widget.busId,
-          'nom': widget.nomSalarie,
-          'matricule': matricule,
-        });
-      }
 
       if (mounted) {
         Navigator.pop(context);
@@ -858,9 +879,6 @@ class _PointageDialogState extends State<_PointageDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final temp =
-        double.tryParse(_tempCtrl.text.replaceAll(',', '.')) ?? 36.6;
-    final fievre = temp > 37.5;
     final now = DateTime.now();
 
     return AlertDialog(
@@ -909,74 +927,22 @@ class _PointageDialogState extends State<_PointageDialog> {
         width: 340,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const SizedBox(height: 4),
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Text('Méthode de pointage',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600, fontSize: 12)),
-          ),
-          const SizedBox(height: 8),
-          Row(children: [
-            _MethodeBtn(
-                label: 'Manuel',
-                icon: Icons.front_hand,
-                value: 'manuel',
-                selected: _methode == 'manuel',
-                color: Colors.orange,
-                onTap: () => setState(() => _methode = 'manuel')),
-            const SizedBox(width: 8),
-            _MethodeBtn(
-                label: 'Badge NFC',
-                icon: Icons.nfc,
-                value: 'badge_nfc',
-                selected: _methode == 'badge_nfc',
-                color: Colors.blue,
-                onTap: () => setState(() => _methode = 'badge_nfc')),
-            const SizedBox(width: 8),
-            _MethodeBtn(
-                label: 'Biométrique',
-                icon: Icons.fingerprint,
-                value: 'biometrique',
-                selected: _methode == 'biometrique',
-                color: Colors.purple,
-                onTap: () =>
-                    setState(() => _methode = 'biometrique')),
-          ]),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _tempCtrl,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
-            onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(
-              labelText: 'Température (°C)',
-              prefixIcon: Icon(Icons.thermostat,
-                  color: fievre ? Colors.red : Colors.orange),
-              suffixText: '°C',
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10)),
-              filled: true,
-              fillColor:
-                  fievre ? Colors.red.shade50 : Colors.grey.shade50,
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.orange.shade100),
             ),
-          ),
-          if (fievre) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                borderRadius: BorderRadius.circular(8),
+            child: const Row(children: [
+              Icon(Icons.front_hand, color: Colors.orange, size: 16),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text('Pointage manuel : seule la position est enregistrée.',
+                    style: TextStyle(fontSize: 11, color: Colors.black87)),
               ),
-              child: const Row(children: [
-                Icon(Icons.warning_amber, color: Colors.red, size: 16),
-                SizedBox(width: 8),
-                Text('⚠️ Température élevée > 37.5°C',
-                    style:
-                        TextStyle(color: Colors.red, fontSize: 12)),
-              ]),
-            ),
-          ],
+            ]),
+          ),
           const SizedBox(height: 12),
           Container(
             padding:
@@ -1033,70 +999,16 @@ class _PointageDialogState extends State<_PointageDialog> {
         FilledButton(
           onPressed: _loading ? null : _enregistrer,
           style: FilledButton.styleFrom(
-              backgroundColor:
-                  fievre ? Colors.red : const Color(0xFF1565C0)),
+              backgroundColor: const Color(0xFF1565C0)),
           child: _loading
               ? const SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
                       strokeWidth: 2, color: Colors.white))
-              : Text(fievre
-                  ? 'Enregistrer (fièvre)'
-                  : 'Confirmer présence'),
+              : const Text('Confirmer présence'),
         ),
       ],
-    );
-  }
-}
-
-class _MethodeBtn extends StatelessWidget {
-  final String label, value;
-  final IconData icon;
-  final bool selected;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _MethodeBtn({
-    required this.label,
-    required this.icon,
-    required this.value,
-    required this.selected,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: selected
-                ? color.withOpacity(0.12)
-                : Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: selected ? color : Colors.grey.shade200,
-              width: selected ? 2 : 1,
-            ),
-          ),
-          child: Column(children: [
-            Icon(icon,
-                color: selected ? color : Colors.grey, size: 20),
-            const SizedBox(height: 4),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    color: selected ? color : Colors.grey),
-                textAlign: TextAlign.center),
-          ]),
-        ),
-      ),
     );
   }
 }

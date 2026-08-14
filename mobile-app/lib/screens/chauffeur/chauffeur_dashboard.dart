@@ -83,6 +83,15 @@ String _dateKeyOf(Map<String, dynamic> rec) {
   return '';
 }
 
+/// On ne garde que deux méthodes de pointage : reconnaissance faciale
+/// (automatique) ou manuel. Les anciennes valeurs (badge_nfc, biométrique...)
+/// sont regroupées avec 'manuel'.
+String _normMethode(String? raw) {
+  const facial = {'face', 'reconnaissance_faciale', 'facial', 'reconnaissance'};
+  if (raw != null && facial.contains(raw)) return 'reconnaissance_faciale';
+  return 'manuel';
+}
+
 /// Fusionne 'attendance' (auto) + 'manual_checkins' du jour pour un bus donné,
 /// indexés par matricule.
 Map<String, Map<String, dynamic>> _buildPresenceMapByMatricule({
@@ -295,11 +304,13 @@ class _ChauffeurDashboardState extends State<ChauffeurDashboard> {
   // timestamp, matricule?, temperature?, nom?}. 'bus_id' est au format
   // Firestore ("BUS_2603TU140"), donc on filtre directement par _busId.
   String? _alertePath; // chemin RTDB complet de l'alerte affichée, pour l'acquittement
+  bool _alerteEmployeIdentifie = false; // true si l'alerte porte un nom (employé reconnu)
+  String? _matriculeAlerteVisage; // matricule de l'employé identifié, pour afficher sa photo enrôlée
 
   void _startAlerteListener() {
     _alerteSub?.cancel();
     if (_busId.isEmpty) {
-      setState(() { _alerteVisageInconnu = false; _nomAlerteVisage = ''; _alertePath = null; });
+      setState(() { _alerteVisageInconnu = false; _nomAlerteVisage = ''; _alertePath = null; _alerteEmployeIdentifie = false; _matriculeAlerteVisage = null; });
       return;
     }
     _alerteSub = _rtdb.ref('alerts').onValue.listen((event) {
@@ -316,18 +327,23 @@ class _ChauffeurDashboardState extends State<ChauffeurDashboard> {
         // La plus récente en dernier (ordre d'insertion RTDB approx. chronologique)
         final derniere = entries.last;
         final type = derniere.value['alert_type'] as String? ?? 'alerte';
-        final label = type == 'unknown'
-            ? 'Visage inconnu détecté'
-            : type == 'fever'
-                ? 'Alerte température (${derniere.value['temperature'] ?? '?'}°C)'
-                : 'Alerte : $type';
+        // Un employé est "identifié" si l'alerte porte son nom (ex : reconnu
+        // mais en fièvre). Dans ce cas on affiche son nom, pas un message
+        // générique "visage non reconnu".
+        final nomBrut = (derniere.value['nom'] as String?)?.trim();
+        final identifie = nomBrut != null && nomBrut.isNotEmpty;
+        final label = type == 'fever'
+            ? 'Alerte température (${derniere.value['temperature'] ?? '?'}°C)'
+            : 'Visage inconnu détecté';
         setState(() {
           _alerteVisageInconnu = true;
-          _nomAlerteVisage = derniere.value['nom'] as String? ?? label;
+          _nomAlerteVisage = identifie ? nomBrut : label;
+          _alerteEmployeIdentifie = identifie;
           _alertePath = derniere.key;
+          _matriculeAlerteVisage = (derniere.value['matricule'] as String?)?.trim();
         });
       } else {
-        setState(() { _alerteVisageInconnu = false; _nomAlerteVisage = ''; _alertePath = null; });
+        setState(() { _alerteVisageInconnu = false; _nomAlerteVisage = ''; _alertePath = null; _alerteEmployeIdentifie = false; _matriculeAlerteVisage = null; });
       }
     });
   }
@@ -336,7 +352,7 @@ class _ChauffeurDashboardState extends State<ChauffeurDashboard> {
     if (_alertePath != null) {
       await _rtdb.ref('alerts/$_alertePath').update({'acknowledged': true});
     }
-    setState(() { _alerteVisageInconnu = false; _nomAlerteVisage = ''; _alertePath = null; });
+    setState(() { _alerteVisageInconnu = false; _nomAlerteVisage = ''; _alertePath = null; _alerteEmployeIdentifie = false; _matriculeAlerteVisage = null; });
   }
 
   @override
@@ -363,7 +379,12 @@ class _ChauffeurDashboardState extends State<ChauffeurDashboard> {
         if (_alerteVisageInconnu)
           Positioned(
             top: 0, left: 0, right: 0,
-            child: _AlerteVisageBanner(nom: _nomAlerteVisage, onAcquitter: _acquitterAlerte),
+            child: _AlerteVisageBanner(
+              nom: _nomAlerteVisage,
+              identifie: _alerteEmployeIdentifie,
+              matricule: _matriculeAlerteVisage,
+              onAcquitter: _acquitterAlerte,
+            ),
           ),
       ]),
       bottomNavigationBar: _buildBottomNav(),
@@ -419,11 +440,135 @@ class _ChauffeurDashboardState extends State<ChauffeurDashboard> {
             tooltip: 'Changer mon bus / circuit',
             onPressed: () => context.go('/chauffeur/choix-bus'),
           ),
-        IconButton(
-          icon: const Icon(Icons.logout, size: 20),
-          onPressed: () => _confirmLogout(context, context.read<AuthService>()),
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.account_circle_outlined, size: 22),
+          tooltip: 'Compte',
+          onSelected: (value) {
+            if (value == 'password') {
+              _showChangePasswordDialog(context, context.read<AuthService>());
+            } else if (value == 'logout') {
+              _confirmLogout(context, context.read<AuthService>());
+            }
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem(
+              value: 'password',
+              child: Row(children: [
+                Icon(Icons.key, size: 18),
+                SizedBox(width: 10),
+                Text('Changer mon mot de passe'),
+              ]),
+            ),
+            PopupMenuItem(
+              value: 'logout',
+              child: Row(children: [
+                Icon(Icons.logout, size: 18),
+                SizedBox(width: 10),
+                Text('Déconnexion'),
+              ]),
+            ),
+          ],
         ),
       ],
+    );
+  }
+
+  Future<void> _showChangePasswordDialog(BuildContext context, AuthService auth) async {
+    final currentCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool saving = false;
+    String? error;
+    String? success;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Changer mon mot de passe'),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: currentCtrl,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: 'Mot de passe actuel'),
+                      validator: (v) => (v == null || v.isEmpty) ? 'Requis' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: newCtrl,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: 'Nouveau mot de passe'),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Requis';
+                        if (v.length < 6) return '6 caractères minimum';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: confirmCtrl,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: 'Confirmer le nouveau mot de passe'),
+                      validator: (v) => (v != newCtrl.text) ? 'Les mots de passe ne correspondent pas' : null,
+                    ),
+                    if (error != null) ...[
+                      const SizedBox(height: 10),
+                      Text(error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
+                    ],
+                    if (success != null) ...[
+                      const SizedBox(height: 10),
+                      Text(success!, style: const TextStyle(color: Colors.green, fontSize: 13)),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.pop(dialogCtx),
+                  child: const Text('Fermer'),
+                ),
+                FilledButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+                          setDialogState(() { saving = true; error = null; success = null; });
+                          final err = await auth.changePassword(
+                            currentPassword: currentCtrl.text,
+                            newPassword: newCtrl.text,
+                          );
+                          setDialogState(() {
+                            saving = false;
+                            if (err != null) {
+                              error = err;
+                            } else {
+                              success = 'Mot de passe modifié avec succès.';
+                              currentCtrl.clear();
+                              newCtrl.clear();
+                              confirmCtrl.clear();
+                            }
+                          });
+                        },
+                  child: saving
+                      ? const SizedBox(
+                          width: 18, height: 18,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text('Modifier'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -483,8 +628,8 @@ class _ChauffeurDashboardState extends State<ChauffeurDashboard> {
 //  Bannière alerte visage
 // ═════════════════════════════════════════════════════════════════════════════
 class _AlerteVisageBanner extends StatefulWidget {
-  final String nom; final VoidCallback onAcquitter;
-  const _AlerteVisageBanner({required this.nom, required this.onAcquitter});
+  final String nom; final bool identifie; final String? matricule; final VoidCallback onAcquitter;
+  const _AlerteVisageBanner({required this.nom, required this.identifie, required this.onAcquitter, this.matricule});
   @override State<_AlerteVisageBanner> createState() => _AlerteVisageBannerState();
 }
 class _AlerteVisageBannerState extends State<_AlerteVisageBanner> with SingleTickerProviderStateMixin {
@@ -493,7 +638,9 @@ class _AlerteVisageBannerState extends State<_AlerteVisageBanner> with SingleTic
   @override void initState() {
     super.initState();
     _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 600))..repeat(reverse: true);
-    _colorAnim = ColorTween(begin: Colors.red.shade700, end: Colors.red.shade400).animate(_ctrl);
+    _colorAnim = widget.identifie
+        ? ColorTween(begin: Colors.orange.shade700, end: Colors.orange.shade400).animate(_ctrl)
+        : ColorTween(begin: Colors.red.shade700, end: Colors.red.shade400).animate(_ctrl);
   }
   @override void dispose() { _ctrl.dispose(); super.dispose(); }
   @override Widget build(BuildContext context) {
@@ -501,10 +648,21 @@ class _AlerteVisageBannerState extends State<_AlerteVisageBanner> with SingleTic
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       color: _colorAnim.value,
       child: Row(children: [
-        const Icon(Icons.face_retouching_off, color: Colors.white, size: 22),
+        // Photo enrôlée de l'employé identifié (reconnaissance faciale), sinon icône générique.
+        if (widget.identifie && (widget.matricule ?? '').isNotEmpty)
+          _FacePhotoAvatar(
+            matricule: widget.matricule!,
+            radius: 15,
+            fallbackIcon: Icons.how_to_reg,
+            color: Colors.white,
+            border: Colors.white,
+          )
+        else
+          Icon(widget.identifie ? Icons.how_to_reg : Icons.face_retouching_off, color: Colors.white, size: 22),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('⚠ VISAGE NON RECONNU', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+          Text(widget.identifie ? '✓ PRÉSENCE ENREGISTRÉE — ALERTE' : '⚠ VISAGE NON RECONNU',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
           Text(widget.nom, style: const TextStyle(color: Colors.white70, fontSize: 11)),
         ])),
         GestureDetector(onTap: widget.onAcquitter, child: Container(
@@ -514,6 +672,57 @@ class _AlerteVisageBannerState extends State<_AlerteVisageBanner> with SingleTic
         )),
       ]),
     ));
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Photo de visage enrôlée (Firestore face_enrollments/{matricule}.photo_url)
+//  Utilisée pour illustrer les pointages/alertes détectés par reconnaissance
+//  faciale (système). Le pointage manuel ne passe jamais par ce widget.
+// ═════════════════════════════════════════════════════════════════════════════
+class _FacePhotoAvatar extends StatelessWidget {
+  final String matricule;
+  final double radius;
+  final IconData fallbackIcon;
+  final Color color;
+  final Color? border;
+  const _FacePhotoAvatar({
+    required this.matricule,
+    required this.fallbackIcon,
+    required this.color,
+    this.radius = 14,
+    this.border,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget fallback() => CircleAvatar(
+          radius: radius,
+          backgroundColor: color.withOpacity(0.12),
+          child: Icon(fallbackIcon, size: radius, color: color),
+        );
+
+    if (matricule.isEmpty) return fallback();
+
+    return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      future: FirebaseFirestore.instance.collection('face_enrollments').doc(matricule).get(),
+      builder: (context, snap) {
+        final url = snap.data?.data()?['photo_url'] as String?;
+        if (url == null || url.isEmpty) return fallback();
+        final avatar = CircleAvatar(
+          radius: radius,
+          backgroundColor: color.withOpacity(0.12),
+          backgroundImage: NetworkImage(url),
+          onBackgroundImageError: (_, __) {},
+        );
+        if (border == null) return avatar;
+        return Container(
+          padding: const EdgeInsets.all(1.5),
+          decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: border!, width: 1.5)),
+          child: avatar,
+        );
+      },
+    );
   }
 }
 
@@ -843,13 +1052,49 @@ class _StationsInline extends StatelessWidget {
 // ═════════════════════════════════════════════════════════════════════════════
 class _DistanceSemaine extends StatelessWidget {
   final String busId;
-  const _DistanceSemaine({required this.busId});
+  final String periode; // "Aujourd'hui" | 'Semaine' | 'Mois'
+  const _DistanceSemaine({required this.busId, this.periode = 'Semaine'});
+
+  List<String> get _dateKeys {
+    final now = DateTime.now();
+    switch (periode) {
+      case "Aujourd'hui":
+        return [_todayKey];
+      case 'Mois':
+        final first = DateTime(now.year, now.month, 1);
+        final nbJours = now.difference(first).inDays + 1;
+        return List.generate(nbJours, (i) {
+          final d = first.add(Duration(days: i));
+          return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+        });
+      case 'Semaine':
+      default:
+        return _weekKeys;
+    }
+  }
+
+  String get _titre {
+    switch (periode) {
+      case "Aujourd'hui": return 'Distance du jour';
+      case 'Mois': return 'Distance du mois';
+      default: return 'Distance semaine';
+    }
+  }
+
+  String get _sousTitre {
+    final now = DateTime.now();
+    switch (periode) {
+      case "Aujourd'hui": return DateFormat('EEEE d MMMM', 'fr').format(now);
+      case 'Mois': return 'Depuis le 1er ${DateFormat('MMMM', 'fr').format(now)}';
+      default: return 'Lundi → aujourd\'hui';
+    }
+  }
 
   Future<Map<String, double>> _calcDistances() async {
     final db = FirebaseFirestore.instance;
     final Map<String, double> result = {};
 
-    for (final dateKey in _weekKeys) {
+    for (final dateKey in _dateKeys) {
       try {
         final snap = await db
             .collection('buses')
@@ -882,6 +1127,7 @@ class _DistanceSemaine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dateKeys = _dateKeys;
     return FutureBuilder<Map<String, double>>(
       future: _calcDistances(),
       builder: (ctx, snap) {
@@ -907,8 +1153,8 @@ class _DistanceSemaine extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Distance semaine', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                Text('Lundi → aujourd\'hui', style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+                Text(_titre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                Text(_sousTitre, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
               ]),
               const Spacer(),
               if (snap.connectionState == ConnectionState.waiting)
@@ -920,38 +1166,48 @@ class _DistanceSemaine extends StatelessWidget {
                   const Text('total', style: TextStyle(fontSize: 10, color: Colors.grey)),
                 ]),
             ]),
-            if (snap.hasData && distances.isNotEmpty) ...[
+            if (snap.hasData && distances.isNotEmpty && dateKeys.length > 1) ...[
               const SizedBox(height: 16),
-              // Graphe barres
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: List.generate(_weekKeys.length, (i) {
-                  final key = _weekKeys[i];
-                  final km = distances[key] ?? 0;
-                  final isToday = i == _weekKeys.length - 1;
-                  final barH = km == 0 ? 4.0 : (km / maxKm * 60).clamp(4.0, 60.0);
-                  return Expanded(child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      if (km > 0)
-                        Text('${km.toStringAsFixed(0)}',
-                            style: TextStyle(fontSize: 9, color: isToday ? Colors.teal : Colors.grey[500])),
-                      const SizedBox(height: 2),
-                      Container(
-                        height: barH,
-                        decoration: BoxDecoration(
-                          color: isToday ? Colors.teal : Colors.teal.shade100,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
+              // Graphe barres (semaine : L→D, mois : jour par jour, défilable)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: List.generate(dateKeys.length, (i) {
+                    final key = dateKeys[i];
+                    final km = distances[key] ?? 0;
+                    final isToday = key == _todayKey;
+                    final barH = km == 0 ? 4.0 : (km / maxKm * 60).clamp(4.0, 60.0);
+                    final label = periode == 'Semaine'
+                        ? (i < dayLabels.length ? dayLabels[i] : '')
+                        : '${i + 1}';
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: SizedBox(
+                        width: periode == 'Semaine' ? null : 22,
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
+                          if (km > 0)
+                            Text(km.toStringAsFixed(0),
+                                style: TextStyle(fontSize: 9, color: isToday ? Colors.teal : Colors.grey[500])),
+                          const SizedBox(height: 2),
+                          Container(
+                            width: periode == 'Semaine' ? 28 : 14,
+                            height: barH,
+                            decoration: BoxDecoration(
+                              color: isToday ? Colors.teal : Colors.teal.shade100,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(label,
+                              style: TextStyle(fontSize: 10,
+                                  fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                                  color: isToday ? Colors.teal : Colors.grey)),
+                        ]),
                       ),
-                      const SizedBox(height: 4),
-                      Text(i < dayLabels.length ? dayLabels[i] : '',
-                          style: TextStyle(fontSize: 10,
-                              fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                              color: isToday ? Colors.teal : Colors.grey)),
-                    ]),
-                  ));
-                }),
+                    );
+                  }),
+                ),
               ),
             ],
           ]),
@@ -1306,7 +1562,12 @@ class _RecentAlertsCard extends StatelessWidget {
                 final isFever = type == 'fever';
                 final tsStr = a['timestamp'] as String?;
                 DateTime? dt; try { if (tsStr != null) dt = DateTime.parse(tsStr); } catch (_) {}
-                final nom = (a['nom'] as String?) ?? 'Unknown';
+                // On n'affiche le nom / les détails que si l'employé a bien été
+                // identifié par la reconnaissance faciale (champ 'nom' présent).
+                // Sinon (visage vraiment inconnu), on reste sur un libellé générique.
+                final nomBrut = (a['nom'] as String?)?.trim();
+                final estIdentifie = nomBrut != null && nomBrut.isNotEmpty;
+                final titre = estIdentifie ? nomBrut : 'Visage inconnu';
                 return Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
                   child: Row(children: [
@@ -1316,19 +1577,40 @@ class _RecentAlertsCard extends StatelessWidget {
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Row(children: [
-                          Text(isFever ? 'Alerte température' : nom,
+                          Text(titre,
                               style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
                           const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: (isFever ? Colors.red : Colors.orange).withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(6),
+                          if (estIdentifie)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text('enregistré',
+                                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.green)),
                             ),
-                            child: Text(isFever ? 'fièvre' : 'unknown',
-                                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold,
-                                    color: isFever ? Colors.red : Colors.orange)),
-                          ),
+                          const SizedBox(width: 4),
+                          if (isFever)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text('fièvre',
+                                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.red)),
+                            )
+                          else if (!estIdentifie)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text('inconnu',
+                                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.orange)),
+                            ),
                         ]),
                         const SizedBox(height: 2),
                         Text(dt != null ? DateFormat('HH:mm:ss').format(dt) : '--',
@@ -1439,11 +1721,21 @@ class _StatistiquesScreenState extends State<_StatistiquesScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           final allPresences = <Map<String, dynamic>>[];
-          bool inRange(String? tsStr) {
-            if (tsStr == null) return false;
+          // Les enregistrements de reconnaissance faciale n'ont pas toujours de
+          // champ 'timestamp' (la date/heure est encodée dans le chemin RTDB et/ou
+          // des champs 'date'/'time' séparés) : on se base sur _dateKeyOf (déjà
+          // robuste à ce sujet) plutôt que sur 'timestamp' seul, sans quoi les
+          // pointages système anciens n'apparaissent jamais, quel que soit le filtre.
+          bool inRange(Map<String, dynamic> rec) {
+            final dateKey = _dateKeyOf(rec);
+            if (dateKey.isEmpty) return false;
+            final parts = dateKey.split('-');
+            if (parts.length != 3) return false;
             try {
-              final dt = DateTime.parse(tsStr);
-              return dt.isAfter(range.start) && dt.isBefore(range.end.add(const Duration(days: 1)));
+              final d = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+              final startDay = DateTime(range.start.year, range.start.month, range.start.day);
+              final endDay = DateTime(range.end.year, range.end.month, range.end.day);
+              return !d.isBefore(startDay) && !d.isAfter(endDay);
             } catch (_) {
               return false;
             }
@@ -1453,32 +1745,39 @@ class _StatistiquesScreenState extends State<_StatistiquesScreen> {
           // attendance/{immatriculation}/... : pas de champ bus_id à vérifier.
           if (snapAtt.data?.snapshot.value != null) {
             for (final e in _flattenRtdbRecords(snapAtt.data!.snapshot.value)) {
-              final tsStr = (e['timestamp'] ?? e['created_at']) as String?;
-              if (inRange(tsStr)) allPresences.add(e);
+              if (inRange(e)) allPresences.add(e);
             }
           }
           // 'manual_checkins' porte un champ bus_id explicite (format Firestore).
           if (snapManual.data?.snapshot.value != null) {
             for (final e in _flattenRtdbRecords(snapManual.data!.snapshot.value)) {
               if ((e['bus_id'] as String?) != widget.busId) continue;
-              final tsStr = (e['timestamp'] ?? e['created_at']) as String?;
-              if (inRange(tsStr)) allPresences.add(e);
+              if (inRange(e)) allPresences.add(e);
             }
           }
 
           // Alertes (visage inconnu / température) sur la période, pour ce bus.
           final alertesPeriode = _flattenRtdbRecords(snapAlerts.data?.snapshot.value)
-              .where((a) => a['bus_id'] == widget.busId && inRange(a['timestamp'] as String?))
+              .where((a) => a['bus_id'] == widget.busId && inRange(a))
               .toList();
 
-          allPresences.sort((a, b) => (b['timestamp'] as String? ?? '').compareTo(a['timestamp'] as String? ?? ''));
+          // Clé de tri chronologique : timestamp/created_at si présents,
+          // sinon 'date + time' reconstitué (mêmes champs que _dateKeyOf).
+          String sortKey(Map<String, dynamic> rec) {
+            final ts = (rec['timestamp'] ?? rec['created_at']) as String?;
+            if (ts != null && ts.isNotEmpty) return ts;
+            final date = rec['date'] as String? ?? '';
+            final time = rec['time'] as String? ?? '';
+            return '$date $time';
+          }
+          allPresences.sort((a, b) => sortKey(b).compareTo(sortKey(a)));
           final presents = allPresences;
           final fievresPresences = presents.where((e) => ((e['temperature'] as num?)?.toDouble() ?? 0) > 37.5).length;
           final fievresAlertes = alertesPeriode.where((a) => a['alert_type'] == 'fever').length;
           final fievres = fievresPresences > fievresAlertes ? fievresPresences : fievresAlertes;
           final inconnus = alertesPeriode.where((a) => a['alert_type'] == 'unknown').length;
           final methodCount = <String, int>{};
-          for (final e in presents) { final m = e['identification'] as String? ?? 'manuel'; methodCount[m] = (methodCount[m] ?? 0) + 1; }
+          for (final e in presents) { final m = _normMethode(e['identification'] as String?); methodCount[m] = (methodCount[m] ?? 0) + 1; }
 
           return SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1491,9 +1790,9 @@ class _StatistiquesScreenState extends State<_StatistiquesScreen> {
                 _BigStatCard(label: 'Inconnus', value: '$inconnus', icon: Icons.face_retouching_off, color: inconnus > 0 ? Colors.orange : Colors.grey),
               ]),
               const SizedBox(height: 16),
-              // Distance semaine dans les stats aussi
+              // Distance sur la période sélectionnée (Aujourd'hui/Semaine/Mois)
               if (widget.busId.isNotEmpty) ...[
-                _DistanceSemaine(busId: widget.busId),
+                _DistanceSemaine(busId: widget.busId, periode: _filtre),
                 const SizedBox(height: 16),
               ],
               Container(
@@ -1502,7 +1801,7 @@ class _StatistiquesScreenState extends State<_StatistiquesScreen> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   const Text('Par méthode de pointage', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   const SizedBox(height: 12),
-                  ...['manuel', 'badge_nfc', 'biometrique', 'reconnaissance_faciale'].map((m) {
+                  ...['reconnaissance_faciale', 'manuel'].map((m) {
                     final count = methodCount[m] ?? 0;
                     final total = presents.isEmpty ? 1 : presents.length;
                     return Padding(padding: const EdgeInsets.only(bottom: 10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1536,19 +1835,36 @@ class _StatistiquesScreenState extends State<_StatistiquesScreen> {
                     const Padding(padding: EdgeInsets.all(24), child: Text('Aucun pointage sur cette période', style: TextStyle(color: Colors.grey)))
                   else
                     ...presents.take(20).map((entry) {
-                      final tsStr = entry['timestamp'] as String?;
-                      DateTime? dt; try { if (tsStr != null) dt = DateTime.parse(tsStr); } catch (_) {}
+                      final tsStr = (entry['timestamp'] ?? entry['created_at']) as String?;
+                      DateTime? dt;
+                      try {
+                        if (tsStr != null) {
+                          dt = DateTime.parse(tsStr);
+                        } else if (entry['date'] is String) {
+                          // Pas de 'timestamp' : reconstitue depuis 'date' (+'time' si dispo),
+                          // mêmes champs que ceux utilisés par _dateKeyOf / inRange.
+                          final time = (entry['time'] as String?) ?? '00:00:00';
+                          dt = DateTime.parse('${entry['date']}T$time');
+                        }
+                      } catch (_) {}
                       final t = (entry['temperature'] as num?)?.toDouble();
                       final fievre = (t ?? 0) > 37.5;
-                      final m = entry['identification'] as String? ?? 'manuel';
+                      final m = _normMethode(entry['identification'] as String?);
                       final nom = entry['nom'] as String? ?? entry['salarieId'] ?? '';
                       final isInconnu = entry['face_unknown'] == true;
+                      final matricule = (entry['matricule'] as String?)?.trim() ?? '';
+                      // Photo enrôlée uniquement pour les pointages système (reconnaissance
+                      // faciale) identifiés ; le pointage manuel garde l'icône habituelle.
+                      final showPhoto = m == 'reconnaissance_faciale' && !isInconnu && matricule.isNotEmpty;
                       return ListTile(
                         dense: true,
-                        leading: CircleAvatar(radius: 14,
-                            backgroundColor: isInconnu ? Colors.orange.withOpacity(0.15) : _methodeColor(m).withOpacity(0.12),
-                            child: Icon(isInconnu ? Icons.face_retouching_off : _methodeIcon(m), size: 13,
-                                color: isInconnu ? Colors.orange : _methodeColor(m))),
+                        leading: showPhoto
+                            ? _FacePhotoAvatar(matricule: matricule, radius: 14,
+                                fallbackIcon: _methodeIcon(m), color: _methodeColor(m))
+                            : CircleAvatar(radius: 14,
+                                backgroundColor: isInconnu ? Colors.orange.withOpacity(0.15) : _methodeColor(m).withOpacity(0.12),
+                                child: Icon(isInconnu ? Icons.face_retouching_off : _methodeIcon(m), size: 13,
+                                    color: isInconnu ? Colors.orange : _methodeColor(m))),
                         title: Text(dt != null ? DateFormat('dd/MM · HH:mm:ss').format(dt) : '--', style: const TextStyle(fontSize: 12)),
                         subtitle: Text('$nom · ${_methodeLabel(m)}${isInconnu ? ' · ⚠ Inconnu' : ''}',
                             style: TextStyle(fontSize: 10, color: isInconnu ? Colors.orange : Colors.grey)),
@@ -1575,9 +1891,9 @@ class _StatistiquesScreenState extends State<_StatistiquesScreen> {
     ]);
   }
 
-  IconData _methodeIcon(String m) { switch (m) { case 'badge_nfc': return Icons.nfc; case 'biometrique': return Icons.fingerprint; case 'reconnaissance_faciale': return Icons.face; default: return Icons.front_hand; } }
-  Color _methodeColor(String m) { switch (m) { case 'badge_nfc': return Colors.blue; case 'biometrique': return Colors.purple; case 'reconnaissance_faciale': return Colors.teal; default: return Colors.orange; } }
-  String _methodeLabel(String m) { switch (m) { case 'badge_nfc': return 'Badge NFC'; case 'biometrique': return 'Biométrique'; case 'reconnaissance_faciale': return 'Reconnaissance faciale'; default: return 'Manuel'; } }
+  IconData _methodeIcon(String m) => m == 'reconnaissance_faciale' ? Icons.face : Icons.front_hand;
+  Color _methodeColor(String m) => m == 'reconnaissance_faciale' ? Colors.teal : Colors.orange;
+  String _methodeLabel(String m) => m == 'reconnaissance_faciale' ? 'Reconnaissance faciale' : 'Manuel';
 }
 
 class _BigStatCard extends StatelessWidget {

@@ -5,6 +5,10 @@ import {
   orderBy,
   onSnapshot,
   getDocs,
+  doc,
+  getDoc,
+  setDoc,
+  where,
 } from 'firebase/firestore';
 import { ref, onValue } from 'firebase/database';
 import { db, rtdb } from '../firebase';
@@ -156,21 +160,59 @@ function getDateKeys(periode) {
   return [fmt(now)];
 }
 
+// Le km parcouru par bus/jour est mis en cache de façon persistante dans
+// buses/{busId}/km_daily/{dateKey} (champ km + dernier point connu). À chaque
+// appel, on ne relit que les nouveaux points GPS (ts > lastTs) et on ajoute
+// leur distance au total déjà enregistré : le km reste donc acquis même si
+// l'app est fermée/déconnectée, et les nouveaux trajets s'additionnent au lieu
+// d'être recalculés (et potentiellement perdus/réinitialisés) à chaque fois.
 async function calcDayDistance(busId, dateKey) {
+  const dailyRef = doc(db, 'buses', busId, 'km_daily', dateKey);
+  let saved = { km: 0, lastTs: null, lastLat: null, lastLng: null };
+
   try {
-    const q = query(collection(db, 'buses', busId, 'gps_points', dateKey, 'points'), orderBy('ts'));
+    const snap = await getDoc(dailyRef);
+    if (snap.exists()) saved = { ...saved, ...snap.data() };
+  } catch (err) {
+    console.warn(`km_daily lecture échouée pour ${busId}/${dateKey}:`, err.message);
+  }
+
+  try {
+    const constraints = [orderBy('ts')];
+    if (saved.lastTs) constraints.unshift(where('ts', '>', saved.lastTs));
+    const q = query(collection(db, 'buses', busId, 'gps_points', dateKey, 'points'), ...constraints);
     const snap = await getDocs(q);
-    const docs = snap.docs.map((d) => d.data());
-    let dist = 0;
-    for (let i = 1; i < docs.length; i++) {
-      const a = docs[i - 1];
-      const b = docs[i];
-      const d = haversine(Number(a.lat), Number(a.lng), Number(b.lat), Number(b.lng));
-      if (d < 500) dist += d;
+    const newPoints = snap.docs.map((d) => d.data());
+
+    if (newPoints.length === 0) return saved.km || 0;
+
+    let dist = saved.km || 0;
+    let prev = saved.lastLat != null && saved.lastLng != null ? { lat: saved.lastLat, lng: saved.lastLng } : null;
+    for (const p of newPoints) {
+      if (prev) {
+        const d = haversine(Number(prev.lat), Number(prev.lng), Number(p.lat), Number(p.lng));
+        if (d < 500) dist += d / 1000;
+      }
+      prev = { lat: p.lat, lng: p.lng };
     }
-    return dist / 1000;
-  } catch {
-    return 0;
+
+    const lastPoint = newPoints[newPoints.length - 1];
+    setDoc(
+      dailyRef,
+      {
+        km: dist,
+        lastTs: lastPoint.ts,
+        lastLat: lastPoint.lat,
+        lastLng: lastPoint.lng,
+        updated_at: new Date().toISOString(),
+      },
+      { merge: true }
+    ).catch((err) => console.warn(`km_daily écriture échouée pour ${busId}/${dateKey}:`, err.message));
+
+    return dist;
+  } catch (err) {
+    console.warn(`Calcul km échoué pour ${busId}/${dateKey}, valeur enregistrée conservée:`, err.message);
+    return saved.km || 0;
   }
 }
 

@@ -170,9 +170,9 @@ const isInPeriod = (record, period, now = new Date()) => {
 // ============================================================
 
 const collectionDefinitions = [
-  { key: 'salaries', label: 'Employees', color: 'primary' },
-  { key: 'users', label: 'Users', color: 'secondary' },
-  { key: 'buses', label: 'Buses', color: 'success' },
+  { key: 'salaries', label: 'Employés', color: 'primary' },
+  { key: 'users', label: 'Utilisateurs', color: 'secondary' },
+  { key: 'buses', label: 'Bus', color: 'success' },
   { key: 'circuits', label: 'Circuits', color: 'info' },
   { key: 'conducteurs', label: 'Conducteurs', color: 'warning' },
   { key: 'planning', label: 'Planning', color: 'error' },
@@ -250,7 +250,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (!rtdb) {
       setRtdbError(
-        'Realtime Database is not connected. Check Firebase config and console.',
+        "La base de données en temps réel n'est pas connectée. Vérifiez la configuration Firebase et la console.",
       );
       return;
     }
@@ -314,7 +314,7 @@ export default function Dashboard() {
   const now = new Date();
   const filteredAttendance = attendance.filter((a) => isInPeriod(a, period, now));
   const filteredAlerts = alerts.filter((a) => isInPeriod(a, period, now));
-  const periodLabel = period === 'today' ? 'Today' : period === 'week' ? 'This Week' : 'This Month';
+  const periodLabel = period === 'today' ? "Aujourd'hui" : period === 'week' ? 'Cette semaine' : 'Ce mois-ci';
 
   // Graphiques "Persons per Bus / Route" : on réutilise directement l'attendance
   // déjà chargée par ce composant (au lieu d'ouvrir un 2e abonnement RTDB comme
@@ -416,9 +416,9 @@ export default function Dashboard() {
       {/* En-tête + bascule Analytics / Attendance + sélecteur de période */}
       <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
         <Box>
-          <Typography variant="h4" gutterBottom>Dashboard</Typography>
+          <Typography variant="h4" gutterBottom>Tableau de bord</Typography>
           <Typography variant="body2" color="text.secondary">
-            {view === 'analytics' ? 'Live analytics from Firestore collections' : 'Real-time bus monitoring'}
+            {view === 'analytics' ? 'Statistiques en direct depuis les collections Firestore' : 'Suivi des bus en temps réel'}
           </Typography>
         </Box>
 
@@ -433,25 +433,25 @@ export default function Dashboard() {
           >
             <ToggleButton value="analytics">
               <BarChart3 size={16} style={{ marginRight: 6 }} />
-              Analytics
+              Statistiques
             </ToggleButton>
             <ToggleButton value="attendance">
               <Activity size={16} style={{ marginRight: 6 }} />
-              Attendance
+              Présences
             </ToggleButton>
           </ToggleButtonGroup>
 
           <FormControl size="small" sx={{ minWidth: 160 }}>
-            <InputLabel id="period-select-label">Period</InputLabel>
+            <InputLabel id="period-select-label">Période</InputLabel>
             <Select
               labelId="period-select-label"
               value={period}
-              label="Period"
+              label="Période"
               onChange={(e) => setPeriod(e.target.value)}
             >
-              <MenuItem value="today">Today</MenuItem>
-              <MenuItem value="week">This Week</MenuItem>
-              <MenuItem value="month">This Month</MenuItem>
+              <MenuItem value="today">Aujourd'hui</MenuItem>
+              <MenuItem value="week">Cette semaine</MenuItem>
+              <MenuItem value="month">Ce mois-ci</MenuItem>
             </Select>
           </FormControl>
         </Box>
@@ -619,9 +619,9 @@ export default function Dashboard() {
           <Grid item xs={12} md={6}>
             <Card>
               <CardContent>
-                <Typography variant="h6">Persons per Bus ({periodLabel})</Typography>
+                <Typography variant="h6">Personnes par bus ({periodLabel})</Typography>
                 {busCounts.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">No attendance data yet.</Typography>
+                  <Typography variant="body2" color="text.secondary">Aucune donnée de présence pour le moment.</Typography>
                 ) : (
                   <Box sx={{ height: 260 }}>
                     <ReactApexChart
@@ -640,9 +640,9 @@ export default function Dashboard() {
           <Grid item xs={12} md={6}>
             <Card>
               <CardContent>
-                <Typography variant="h6">Persons per Route ({periodLabel})</Typography>
+                <Typography variant="h6">Personnes par trajet ({periodLabel})</Typography>
                 {routeCounts.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">No attendance data yet.</Typography>
+                  <Typography variant="body2" color="text.secondary">Aucune donnée de présence pour le moment.</Typography>
                 ) : (
                   <Box sx={{ height: 260 }}>
                     <ReactApexChart
@@ -671,7 +671,7 @@ export default function Dashboard() {
                     <Users />
                   </Avatar>
                   <Box>
-                    <Typography variant="subtitle2">Total Boarded — {periodLabel}</Typography>
+                    <Typography variant="subtitle2">Total embarqué — {periodLabel}</Typography>
                     <Typography variant="h5">{stats.total}</Typography>
                   </Box>
                 </CardContent>
@@ -685,7 +685,7 @@ export default function Dashboard() {
                     <ShieldAlert />
                   </Avatar>
                   <Box>
-                    <Typography variant="subtitle2">Alerts — {periodLabel}</Typography>
+                    <Typography variant="subtitle2">Alertes — {periodLabel}</Typography>
                     <Typography variant="h5">{stats.alertsCount}</Typography>
                   </Box>
                 </CardContent>
@@ -699,11 +699,11 @@ export default function Dashboard() {
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                     <Users color="primary" size={18} />
-                    <Typography variant="h6">Latest Boardings</Typography>
+                    <Typography variant="h6">Derniers embarquements</Typography>
                   </Box>
 
                   {filteredAttendance.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>No attendance for selected period.</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>Aucune présence pour la période sélectionnée.</Typography>
                   ) : (
                     <List>
                       {filteredAttendance.slice(0, 5).map((att) => (
@@ -715,7 +715,7 @@ export default function Dashboard() {
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                                   <strong>{att.matricule}</strong>
                                   <Chip
-                                    label={att.statut || 'Unknown'}
+                                    label={att.statut || 'Inconnu'}
                                     color={att.statut === 'present' ? 'success' : att.statut === 'absent' ? 'error' : 'default'}
                                     size="small"
                                   />
@@ -724,7 +724,7 @@ export default function Dashboard() {
                                   <Clock size={12} /> {att.time || '—'} • {att.date || '—'}
                                 </Typography>
                                 <Typography component="span" variant="body2" color="text.secondary">
-                                  Bus: {att.bus_id} | Route: {att.code_trajet}
+                                  Bus : {att.bus_id} | Trajet : {att.code_trajet}
                                 </Typography>
                               </Box>
                             }
@@ -742,11 +742,11 @@ export default function Dashboard() {
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                     <ShieldAlert color="error" />
-                    <Typography variant="h6">Recent Alerts</Typography>
+                    <Typography variant="h6">Alertes récentes</Typography>
                   </Box>
 
                   {filteredAlerts.length === 0 ? (
-                    <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>No alerts for selected period.</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>Aucune alerte pour la période sélectionnée.</Typography>
                   ) : (
                     <List>
                       {filteredAlerts.slice(0, 5).map((alert) => (
@@ -758,7 +758,7 @@ export default function Dashboard() {
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                                   <strong>{alert.matricule}</strong>
                                   <Typography component="span" variant="body2" color="text.secondary">
-                                    on Bus {alert.bus_id}
+                                    sur le bus {alert.bus_id}
                                   </Typography>
                                   <Chip label={alert.alert_type} size="small" sx={{ ml: 1 }} />
                                 </Box>

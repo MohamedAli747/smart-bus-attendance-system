@@ -26,7 +26,7 @@ export default function Login() {
       await signInWithEmailAndPassword(auth, email, password)
     } catch (err) {
       console.error(err)
-      setError(`Login failed: ${err.code || err.message}`)
+      setError(`Échec de la connexion : ${err.code || err.message}`)
     } finally {
       setLoading(false)
     }
@@ -39,15 +39,15 @@ export default function Login() {
           <Avatar sx={{ m: 1, bgcolor: 'primary.main' }}>
             <Lock size={22} />
           </Avatar>
-          <Typography component="h1" variant="h5">Admin Portal</Typography>
-          <Typography variant="body2" color="text.secondary">Bus Attendance System</Typography>
+          <Typography component="h1" variant="h5">Portail Admin</Typography>
+          <Typography variant="body2" color="text.secondary">Système de présence des bus</Typography>
         </Box>
 
         {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
 
         <Box component="form" onSubmit={handleLogin} sx={{ mt: 2 }}>
           <TextField
-            label="Email Address"
+            label="Adresse e-mail"
             id="email"
             type="email"
             value={email}
@@ -58,7 +58,7 @@ export default function Login() {
           />
 
           <TextField
-            label="Password"
+            label="Mot de passe"
             id="password"
             type="password"
             value={password}
@@ -69,7 +69,7 @@ export default function Login() {
           />
 
           <Button type="submit" variant="contained" color="primary" fullWidth disabled={loading} startIcon={loading ? <CircularProgress color="inherit" size={18} /> : null}>
-            {loading ? 'Authenticating...' : 'Sign In'}
+            {loading ? 'Authentification...' : 'Se connecter'}
           </Button>
         </Box>
       </Paper>

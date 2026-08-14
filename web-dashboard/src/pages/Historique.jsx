@@ -45,7 +45,6 @@ import {
   PersonOutline as PersonIcon,
   FingerprintOutlined as FingerprintIcon,
   TuneRounded as TuneIcon,
-  InfoOutlined as InfoIcon,
 } from '@mui/icons-material';
 
 const kBlue = '#1565c0';
@@ -738,15 +737,6 @@ function ExportExcelSection() {
           <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace', color: 'text.secondary', mb: 1.5 }}>
             DATE · IMM BUS · H.DÉPART · CODE REG. · ITINÉRAIRE DÉP. · KM DÉP. · PERS. DÉP. · H.ARR. · CODE REG. · ITINÉRAIRE ARR. · KM ARR. · PERS. RET. · KM/JOUR
           </Typography>
-          <Box sx={{ display: 'flex', gap: 1, p: 1.5, bgcolor: '#fff8e1', border: '1px solid', borderColor: '#ffe082', borderRadius: 2 }}>
-            <InfoIcon sx={{ fontSize: 16, color: '#f57f17', flexShrink: 0, mt: 0.2 }} />
-            <Typography variant="caption" sx={{ color: '#8d6e00' }}>
-              Les KM DÉPART/ARRIVÉE sont la distance GPS cumulée depuis minuit (Haversine), pas le compteur kilométrique réel.
-              Le "Code région" et l'itinéraire viennent du planning/circuits. Le nombre de personnes au départ est déduit
-              automatiquement des présences (attendance + pointages manuels). Le nombre au retour reste à 0 tant qu'aucun
-              pointage retour n'est enregistré.
-            </Typography>
-          </Box>
         </SectionCard>
       </Box>
 

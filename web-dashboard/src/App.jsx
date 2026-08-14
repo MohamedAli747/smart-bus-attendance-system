@@ -12,6 +12,7 @@ import FaceEnrollment from './pages/FaceEnrollment';
 import Assignation from './pages/Assignation';
 import Historique from './pages/Historique';
 import FleetStats from './pages/FleetStats';
+import Profile from './pages/Profile';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -36,7 +37,7 @@ function App() {
   if (loading) {
     return (
       <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-        Loading Admin Portal...
+        Chargement du portail admin...
       </div>
     );
   }
@@ -55,9 +56,9 @@ function App() {
           element={user ? <DashboardLayout /> : <Navigate to="/login" />}
         >
           <Route index element={<Dashboard />} />
-          <Route path="employees" element={<DataManagement collectionName="salaries" title="Employees" />} />
-          <Route path="face-enrollments" element={<DataManagement collectionName="face_enrollments" title="Face Enrollments" />} />
-          <Route path="buses" element={<DataManagement collectionName="buses" title="Buses" />} />
+          <Route path="employees" element={<DataManagement collectionName="salaries" title="Employés" />} />
+          <Route path="face-enrollments" element={<DataManagement collectionName="face_enrollments" title="Visages enregistrés" />} />
+          <Route path="buses" element={<DataManagement collectionName="buses" title="Bus" />} />
           <Route path="circuits" element={<DataManagement collectionName="circuits" title="Circuits" />} />
           <Route path="conducteurs" element={<DataManagement collectionName="conducteurs" title="Conducteurs" />} />
           <Route path="assignation" element={<Assignation />} />
@@ -66,6 +67,7 @@ function App() {
           <Route path="enroll-face" element={<FaceEnrollment />} />
           <Route path="map" element={<BusMap />} />
           <Route path="fleet-stats" element={<FleetStats />} />
+          <Route path="profile" element={<Profile />} />
         </Route>
       </Routes>
     </Router>

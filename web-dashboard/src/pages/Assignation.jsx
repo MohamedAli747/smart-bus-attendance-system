@@ -90,12 +90,12 @@ export default function Assignation() {
     const unsubBuses = onSnapshot(
       query(collection(db, 'buses'), orderBy('immatriculation')),
       (snap) => setBuses(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-      (err) => notify(`Error loading buses: ${err.message}`, 'error')
+      (err) => notify(`Erreur lors du chargement des bus : ${err.message}`, 'error')
     );
     const unsubConducteurs = onSnapshot(
       query(collection(db, 'conducteurs'), orderBy('nom')),
       (snap) => setConducteurs(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-      (err) => notify(`Error loading conducteurs: ${err.message}`, 'error')
+      (err) => notify(`Erreur lors du chargement des conducteurs : ${err.message}`, 'error')
     );
     const unsubCircuits = onSnapshot(
       query(collection(db, 'circuits'), orderBy('code')),
@@ -104,7 +104,7 @@ export default function Assignation() {
         setLoading(false);
       },
       (err) => {
-        notify(`Error loading circuits: ${err.message}`, 'error');
+        notify(`Erreur lors du chargement des circuits : ${err.message}`, 'error');
         setLoading(false);
       }
     );
@@ -145,7 +145,7 @@ export default function Assignation() {
       });
       notify('✓ Conducteur assigné');
     } catch (err) {
-      notify(`Error: ${err.message}`, 'error');
+      notify(`Erreur : ${err.message}`, 'error');
     } finally {
       setDialog(null);
     }
@@ -184,7 +184,7 @@ export default function Assignation() {
       });
       notify('✓ Circuit assigné');
     } catch (err) {
-      notify(`Error: ${err.message}`, 'error');
+      notify(`Erreur : ${err.message}`, 'error');
     } finally {
       setDialog(null);
     }
@@ -205,7 +205,7 @@ export default function Assignation() {
       });
       notify('Conducteur retiré', 'info');
     } catch (err) {
-      notify(`Error: ${err.message}`, 'error');
+      notify(`Erreur : ${err.message}`, 'error');
     }
   };
 
@@ -224,7 +224,7 @@ export default function Assignation() {
       });
       notify('Circuit retiré', 'info');
     } catch (err) {
-      notify(`Error: ${err.message}`, 'error');
+      notify(`Erreur : ${err.message}`, 'error');
     }
   };
 

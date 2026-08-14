@@ -64,7 +64,7 @@ const sampleBuses = [
   {
     id: 'sample-1',
     bus_id: 'A12',
-    route: 'Central Line',
+    route: 'Ligne Centrale',
     driver: 'Sami',
     latitude: 33.5731,
     longitude: -7.5898,
@@ -77,7 +77,7 @@ const sampleBuses = [
   {
     id: 'sample-2',
     bus_id: 'B07',
-    route: 'Airport Express',
+    route: 'Express Aéroport',
     driver: 'Nadia',
     latitude: 33.5678,
     longitude: -7.5972,
@@ -90,7 +90,7 @@ const sampleBuses = [
   {
     id: 'sample-3',
     bus_id: 'C21',
-    route: 'Harbor Shuttle',
+    route: 'Navette Port',
     driver: 'Mazen',
     latitude: 33.5689,
     longitude: -7.5834,
@@ -107,11 +107,11 @@ const FIVE_MIN_MS = 5 * 60 * 1000;
 function formatAge(ms) {
   if (ms == null) return null;
   const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s ago`;
+  if (s < 60) return `il y a ${s}s`;
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}min ago`;
+  if (m < 60) return `il y a ${m}min`;
   const h = Math.floor(m / 60);
-  return `${h}h ago`;
+  return `il y a ${h}h`;
 }
 
 export default function BusMap() {
@@ -237,11 +237,11 @@ export default function BusMap() {
     setSelectedBus(busId);
   };
 
-  const driverLabel = (bus) => (bus.conducteur_id && conducteursMap[bus.conducteur_id]) || bus.driver || 'No driver';
+  const driverLabel = (bus) => (bus.conducteur_id && conducteursMap[bus.conducteur_id]) || bus.driver || 'Aucun conducteur';
   const routeLabel = (bus) => {
     const c = bus.circuit_id ? circuitsMap[bus.circuit_id] : null;
     if (c) return `${c.code}${c.designation ? ` — ${c.designation}` : ''}`;
-    return bus.route || 'No circuit assigned';
+    return bus.route || 'Aucun circuit assigné';
   };
 
   return (
@@ -252,25 +252,25 @@ export default function BusMap() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
               <Navigation size={24} />
               <Box>
-                <Typography variant="h5">Fleet Overview</Typography>
+                <Typography variant="h5">Vue de la flotte</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Monitor routes, drivers, and live bus positions.
+                  Suivez les trajets, les conducteurs et les positions des bus en direct.
                 </Typography>
               </Box>
             </Box>
             <CardContent sx={{ display: 'grid', gap: 1.5 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="subtitle2">Bus status</Typography>
-                <Chip label={hasLiveData ? 'Live feed' : 'Sample feed'} color={hasLiveData ? 'success' : 'default'} size="small" />
+                <Typography variant="subtitle2">État des bus</Typography>
+                <Chip label={hasLiveData ? 'Flux en direct' : 'Flux exemple'} color={hasLiveData ? 'success' : 'default'} size="small" />
               </Box>
               <Divider />
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Box sx={{ display: 'grid', gap: 1 }}>
-                  <Typography variant="body2">Total active buses</Typography>
+                  <Typography variant="body2">Total des bus actifs</Typography>
                   <Typography variant="h4">{availableBuses.length}</Typography>
                 </Box>
                 <Box sx={{ display: 'grid', gap: 1, textAlign: 'right' }}>
-                  <Typography variant="body2">Online now</Typography>
+                  <Typography variant="body2">En ligne actuellement</Typography>
                   <Typography variant="h4" color={onlineCount > 0 ? 'success.main' : 'text.secondary'}>
                     {onlineCount}
                   </Typography>
@@ -282,7 +282,7 @@ export default function BusMap() {
           <Card sx={{ p: 2, mb: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
               <Filter size={20} />
-              <Typography variant="subtitle1">Filter bus</Typography>
+              <Typography variant="subtitle1">Filtrer par bus</Typography>
             </Box>
             <FormControl fullWidth>
               <InputLabel id="bus-filter-label">Bus</InputLabel>
@@ -293,7 +293,7 @@ export default function BusMap() {
                 onChange={handleFilterChange}
                 size="small"
               >
-                <MenuItem value="all">All Buses</MenuItem>
+                <MenuItem value="all">Tous les bus</MenuItem>
                 {availableBuses.map((bus) => (
                   <MenuItem key={bus.id} value={bus.bus_id}>
                     {`Bus ${bus.bus_id} ${bus.hasGps ? (bus.isRecent ? '🟢' : '🟠') : '⚪'}`}
@@ -305,7 +305,7 @@ export default function BusMap() {
 
           <Card sx={{ p: 0 }}>
             <Typography variant="subtitle1" sx={{ p: 2, borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
-              Fleet Details
+              Détails de la flotte
             </Typography>
             <List className={styles.busList}>
               {availableBuses.map((bus) => (
@@ -318,8 +318,8 @@ export default function BusMap() {
                           {routeLabel(bus)} · {driverLabel(bus)}
                           <br />
                           {bus.hasGps
-                            ? `${bus.isRecent ? '🟢 Online' : '🟠 Signal delayed'}${bus.last_update ? ` · ${formatAge(Date.now() - bus.last_update)}` : ''}`
-                            : '⚪ Offline — no GPS signal'}
+                            ? `${bus.isRecent ? '🟢 En ligne' : '🟠 Signal retardé'}${bus.last_update ? ` · ${formatAge(Date.now() - bus.last_update)}` : ''}`
+                            : '⚪ Hors ligne — aucun signal GPS'}
                         </>
                       }
                     />
@@ -333,10 +333,10 @@ export default function BusMap() {
         <Box className={styles.mapContainer} sx={{ position: 'relative' }}>
           {!db ? (
             <Box className={styles.error}>
-              Error: Firestore is not connected. Please check your Firebase configuration.
+              Erreur : Firestore n'est pas connecté. Veuillez vérifier votre configuration Firebase.
             </Box>
           ) : loading ? (
-            <Box className={styles.loading}>Loading bus locations...</Box>
+            <Box className={styles.loading}>Chargement des positions des bus...</Box>
           ) : (
             <MapContainer center={mapCenter} zoom={13} style={{ height: '100%', width: '100%' }}>
               <TileLayer
@@ -356,11 +356,11 @@ export default function BusMap() {
                       <div className={styles.popup}>
                         <strong>Bus {bus.bus_id}</strong>
                         <p>{routeLabel(bus)}</p>
-                        <p>Driver: {driverLabel(bus)}</p>
-                        <p>Speed: {bus.speed ?? '—'} km/h</p>
-                        <p>{bus.isRecent ? '🟢 Online' : '🟠 Signal delayed'}</p>
+                        <p>Conducteur : {driverLabel(bus)}</p>
+                        <p>Vitesse : {bus.speed ?? '—'} km/h</p>
+                        <p>{bus.isRecent ? '🟢 En ligne' : '🟠 Signal retardé'}</p>
                         <div className={styles.timestamp}>
-                          Last update: {bus.last_update ? new Date(bus.last_update).toLocaleString() : 'Unknown'}
+                          Dernière mise à jour : {bus.last_update ? new Date(bus.last_update).toLocaleString() : 'Inconnue'}
                         </div>
                       </div>
                     </Popup>
@@ -370,7 +370,7 @@ export default function BusMap() {
           )}
           {!loading && db && hasLiveData && availableBuses.every((b) => !b.hasGps) && (
             <Box className={styles.empty} sx={{ position: 'absolute' }}>
-              No bus is currently sending its position.
+              Aucun bus n'envoie actuellement sa position.
             </Box>
           )}
         </Box>
@@ -378,12 +378,12 @@ export default function BusMap() {
 
       <Box className={styles.stats}>
         <Card sx={{ flex: 1, p: 2 }}>
-          <Typography variant="subtitle2" color="text.secondary">Selected Bus</Typography>
-          <Typography variant="h6">{selectedBus === 'all' ? 'All buses active' : `Bus ${selectedBus}`}</Typography>
+          <Typography variant="subtitle2" color="text.secondary">Bus sélectionné</Typography>
+          <Typography variant="h6">{selectedBus === 'all' ? 'Tous les bus actifs' : `Bus ${selectedBus}`}</Typography>
         </Card>
         <Card sx={{ flex: 1, p: 2 }}>
-          <Typography variant="subtitle2" color="text.secondary">Tracking mode</Typography>
-          <Typography variant="h6">{hasLiveData ? (onlineCount > 0 ? 'Live GPS' : 'No signal') : 'Demo dashboard'}</Typography>
+          <Typography variant="subtitle2" color="text.secondary">Mode de suivi</Typography>
+          <Typography variant="h6">{hasLiveData ? (onlineCount > 0 ? 'GPS en direct' : 'Aucun signal') : 'Tableau de bord démo'}</Typography>
         </Card>
       </Box>
     </Box>

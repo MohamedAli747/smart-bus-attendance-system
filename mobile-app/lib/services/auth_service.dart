@@ -161,6 +161,82 @@ class AuthService extends ChangeNotifier {
     await _auth.signOut();
   }
 
+  /// Envoie un e-mail de réinitialisation du mot de passe, mais uniquement
+  /// si l'adresse correspond à un conducteur enregistré (collection
+  /// Firestore `conducteurs`, champ `login`). Les comptes admin ne peuvent
+  /// pas réinitialiser leur mot de passe par e-mail depuis cette app : ils
+  /// doivent le changer depuis le dashboard web React une fois connectés.
+  /// Retourne null si succès, sinon un message d'erreur lisible.
+  Future<String?> sendPasswordResetEmail(String email) async {
+    final trimmedEmail = email.trim();
+    try {
+      final condQuery = await _db
+          .collection('conducteurs')
+          .where('login', isEqualTo: trimmedEmail)
+          .limit(1)
+          .get();
+
+      if (condQuery.docs.isEmpty) {
+        return "Aucun conducteur enregistré avec cet e-mail. "
+            "La réinitialisation par e-mail n'est disponible que pour les "
+            "conducteurs enregistrés.";
+      }
+
+      await _auth.sendPasswordResetEmail(email: trimmedEmail);
+      return null;
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'user-not-found':
+          return 'Aucun compte associé à cet e-mail';
+        case 'invalid-email':
+          return 'Adresse e-mail invalide';
+        case 'too-many-requests':
+          return 'Trop de tentatives. Réessayez plus tard';
+        default:
+          return 'Erreur : ${e.message}';
+      }
+    } catch (e) {
+      return 'Erreur inattendue : $e';
+    }
+  }
+
+  /// Change le mot de passe de l'utilisateur connecté. Nécessite une
+  /// reconnexion récente : on ré-authentifie avec le mot de passe actuel
+  /// avant d'appliquer le nouveau. Retourne null si succès, sinon un
+  /// message d'erreur lisible.
+  Future<String?> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) {
+      return 'Aucun utilisateur authentifié trouvé.';
+    }
+    try {
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword);
+      return null;
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'wrong-password':
+        case 'invalid-credential':
+          return 'Mot de passe actuel incorrect';
+        case 'weak-password':
+          return 'Le nouveau mot de passe est trop faible (6 caractères min.)';
+        case 'too-many-requests':
+          return 'Trop de tentatives. Réessayez plus tard';
+        default:
+          return 'Erreur : ${e.message}';
+      }
+    } catch (e) {
+      return 'Erreur inattendue : $e';
+    }
+  }
+
   @override
   void dispose() {
     _authSub?.cancel();

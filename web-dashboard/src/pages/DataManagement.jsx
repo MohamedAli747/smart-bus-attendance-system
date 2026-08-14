@@ -58,53 +58,53 @@ import {
 
 const EMPLOYEE_COLUMNS = ['horaire', 'nom', 'prenom', 'cin', 'circuit_id', 'dep', 'poste', 'active'];
 const EMPLOYEE_COLUMN_LABELS = {
-  horaire: 'Schedule',
-  nom: 'Last Name',
-  prenom: 'First Name',
+  horaire: 'Horaire',
+  nom: 'Nom',
+  prenom: 'Prénom',
   cin: 'CIN',
   circuit_id: 'Circuit',
-  dep: 'Coordinates',
-  poste: 'Position',
-  active: 'Active',
+  dep: 'Coordonnées',
+  poste: 'Poste',
+  active: 'Actif',
 };
 
 const BUS_COLUMNS = ['modele', 'circuit_id', 'type_veh_2', 'type', 'site_exploitation', 'conducteur_id', 'marque', 'status'];
 const BUS_COLUMN_LABELS = {
-  modele: 'Model',
-  circuit_id: 'Circuit ID',
-  type_veh_2: 'Vehicle Type 2',
+  modele: 'Modèle',
+  circuit_id: 'ID Circuit',
+  type_veh_2: 'Type véhicule 2',
   type: 'Type',
   site_exploitation: 'Site',
-  conducteur_id: 'Driver ID',
-  marque: 'Brand',
-  status: 'Status',
+  conducteur_id: 'ID Conducteur',
+  marque: 'Marque',
+  status: 'Statut',
 };
 
 const CONDUCTEUR_COLUMNS = ['nom', 'role', 'dep', 'login', 'type_chauffeur', 'bus_id', 'sous_dep1', 'sous_dep2', 'roulement', 'actif', 'privilegie', 'horaire'];
 const CONDUCTEUR_COLUMN_LABELS = {
-  nom: 'Name',
-  role: 'Role',
-  dep: 'Department',
-  login: 'Login',
-  type_chauffeur: 'Driver Type',
-  bus_id: 'Bus ID',
-  sous_dep1: 'Sub Dept 1',
-  sous_dep2: 'Sub Dept 2',
-  roulement: 'Rotation',
-  actif: 'Active',
-  privilegie: 'Privileged Access (self-assign bus/circuit)',
-  horaire: 'Schedule',
+  nom: 'Nom',
+  role: 'Rôle',
+  dep: 'Département',
+  login: 'Identifiant',
+  type_chauffeur: 'Type de conducteur',
+  bus_id: 'ID Bus',
+  sous_dep1: 'Sous-dépt 1',
+  sous_dep2: 'Sous-dépt 2',
+  roulement: 'Roulement',
+  actif: 'Actif',
+  privilegie: 'Accès privilégié (auto-assignation bus/circuit)',
+  horaire: 'Horaire',
 };
 
 const PLANNING_COLUMNS = ['h_arrivee', 'h_depart', 'sens', 'trajet', 'conducteur_id', 'bus_id', 'circuit_id'];
 const PLANNING_COLUMN_LABELS = {
-  h_arrivee: 'Arrival Time',
-  h_depart: 'Departure Time',
-  sens: 'Direction',
-  trajet: 'Route',
-  conducteur_id: 'Driver ID',
-  bus_id: 'Bus ID',
-  circuit_id: 'Circuit ID',
+  h_arrivee: "Heure d'arrivée",
+  h_depart: 'Heure de départ',
+  sens: 'Sens',
+  trajet: 'Trajet',
+  conducteur_id: 'ID Conducteur',
+  bus_id: 'ID Bus',
+  circuit_id: 'ID Circuit',
 };
 
 // Firestore `face_enrollments` document fields (as in screenshot):
@@ -112,11 +112,11 @@ const PLANNING_COLUMN_LABELS = {
 const FACE_ENROLLMENTS_COLUMNS = ['matricule', 'enrolled', 'embedding_model', 'embedding_dim', 'embedding', 'updated_at'];
 const FACE_ENROLLMENTS_COLUMN_LABELS = {
   matricule: 'Matricule',
-  enrolled: 'Enrolled',
-  embedding_model: 'Embedding Model',
-  embedding_dim: 'Embedding Dim',
-  embedding: 'Embedding (vector)',
-  updated_at: 'Updated At',
+  enrolled: 'Enrôlé',
+  embedding_model: "Modèle d'embedding",
+  embedding_dim: "Dim. de l'embedding",
+  embedding: 'Embedding (vecteur)',
+  updated_at: 'Mis à jour le',
 };
 
 const FIXED_COLUMNS_BY_COLLECTION = {
@@ -132,7 +132,7 @@ const DOC_ID_REF_BY_COLLECTION = {
   conducteurs: { field: 'matricule', label: 'Matricule' },
   circuits: { field: 'code', label: 'Code' },
   planning: { field: 'code', label: 'Code' },
-  buses: { field: 'immatriculation', label: 'Registration' },
+  buses: { field: 'immatriculation', label: 'Immatriculation' },
   face_enrollments: { field: 'matricule', label: 'Matricule' },
 };
 
@@ -165,7 +165,7 @@ const getBusValue = (row, col) => {
 
 const formatCellValue = (value) => {
   if (value === null || value === undefined) return '';
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
   if (typeof value === 'object') {
     if (value.name != null) return String(value.name);
     if (value.label != null) return String(value.label);
@@ -232,7 +232,7 @@ export default function DataManagement({ collectionName, title }) {
       setData(docs);
       setLoading(false);
     }, (error) => {
-      setSnackbar({ open: true, message: `Error loading data: ${error.message}`, severity: 'error' });
+      setSnackbar({ open: true, message: `Erreur lors du chargement des données : ${error.message}`, severity: 'error' });
       setLoading(false);
     });
 
@@ -241,12 +241,12 @@ export default function DataManagement({ collectionName, title }) {
 
   const handleDelete = async (id) => {
     if (!db) return;
-    if (window.confirm('Are you sure you want to delete this record?')) {
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer cet enregistrement ?')) {
       try {
         await deleteDoc(doc(db, collectionName, id));
-        setSnackbar({ open: true, message: 'Record deleted successfully', severity: 'success' });
+        setSnackbar({ open: true, message: 'Enregistrement supprimé avec succès', severity: 'success' });
       } catch (err) {
-        setSnackbar({ open: true, message: `Error deleting: ${err.message}`, severity: 'error' });
+        setSnackbar({ open: true, message: `Erreur lors de la suppression : ${err.message}`, severity: 'error' });
       }
     }
   };
@@ -269,7 +269,7 @@ export default function DataManagement({ collectionName, title }) {
           const opts = docs.docs.map(d => ({ id: d.id, ...d.data() }));
           setEmployeeOptions(opts);
         } catch (e) {
-          console.error('Failed to load salaries for matricule selector', e);
+          console.error('Échec du chargement des salariés pour le sélecteur de matricule', e);
         }
       })();
     }
@@ -279,11 +279,11 @@ export default function DataManagement({ collectionName, title }) {
   const validateDocId = (value, label) => {
     const id = String(value || '').trim();
     if (!id) {
-      setSnackbar({ open: true, message: `${label} is required.`, severity: 'error' });
+      setSnackbar({ open: true, message: `${label} est requis.`, severity: 'error' });
       return null;
     }
     if (id.includes('/')) {
-      setSnackbar({ open: true, message: `${label} cannot contain "/".`, severity: 'error' });
+      setSnackbar({ open: true, message: `${label} ne peut pas contenir "/".`, severity: 'error' });
       return null;
     }
     return id;
@@ -313,7 +313,7 @@ export default function DataManagement({ collectionName, title }) {
 
       if (editingItem) {
         await updateDoc(doc(db, collectionName, editingItem.id), payload);
-        setSnackbar({ open: true, message: 'Record updated successfully', severity: 'success' });
+        setSnackbar({ open: true, message: 'Enregistrement mis à jour avec succès', severity: 'success' });
       } else if (docIdRef) {
         const refValue = payload[docIdRef.field] || payload[docIdRef.field.toUpperCase()];
         const docId = validateDocId(refValue, docIdRef.label);
@@ -322,23 +322,23 @@ export default function DataManagement({ collectionName, title }) {
         const docRef = doc(db, collectionName, docId);
         const existing = await getDoc(docRef);
         if (existing.exists()) {
-          setSnackbar({ open: true, message: `A record with ${docIdRef.label} "${docId}" already exists.`, severity: 'error' });
+          setSnackbar({ open: true, message: `Un enregistrement avec ${docIdRef.label} "${docId}" existe déjà.`, severity: 'error' });
           return;
         }
 
         const docPayload = { ...payload, [docIdRef.field]: docId };
         await setDoc(docRef, docPayload);
-        setSnackbar({ open: true, message: 'Record added successfully', severity: 'success' });
+        setSnackbar({ open: true, message: 'Enregistrement ajouté avec succès', severity: 'success' });
       } else {
         await addDoc(collection(db, collectionName), payload);
-        setSnackbar({ open: true, message: 'Record added successfully', severity: 'success' });
+        setSnackbar({ open: true, message: 'Enregistrement ajouté avec succès', severity: 'success' });
       }
       setModalOpen(false);
       setFormData({});
       setEditingItem(null);
       setFile(null);
     } catch (err) {
-      setSnackbar({ open: true, message: `Error saving: ${err.message}`, severity: 'error' });
+      setSnackbar({ open: true, message: `Erreur lors de l'enregistrement : ${err.message}`, severity: 'error' });
     }
   };
 
@@ -384,7 +384,7 @@ export default function DataManagement({ collectionName, title }) {
   // Export current data to CSV
   const handleExportCsv = () => {
     if (!data || data.length === 0) {
-      setSnackbar({ open: true, message: 'No data to export', severity: 'info' });
+      setSnackbar({ open: true, message: 'Aucune donnée à exporter', severity: 'info' });
       return;
     }
     // Build a consistent set of columns across all rows, flattening one level of nested objects.
@@ -464,7 +464,7 @@ export default function DataManagement({ collectionName, title }) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    setSnackbar({ open: true, message: `Exported ${rows.length} rows to ${filename}`, severity: 'success' });
+    setSnackbar({ open: true, message: `${rows.length} lignes exportées vers ${filename}`, severity: 'success' });
   };
 
   return (
@@ -495,10 +495,10 @@ export default function DataManagement({ collectionName, title }) {
             </Avatar>
             <Box>
               <Typography variant="h4" fontWeight={700} color="text.primary">
-                {title} Management
+                Gestion {title}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Manage {collectionName} records in Firestore • {data.length} total records
+                {data.length} enregistrement{data.length > 1 ? 's' : ''} au total
               </Typography>
             </Box>
           </Box>
@@ -509,7 +509,7 @@ export default function DataManagement({ collectionName, title }) {
               onClick={handleExportCsv}
               sx={{ borderRadius: 3, px: 2, textTransform: 'none' }}
             >
-              Export CSV
+              Exporter CSV
             </Button>
             <Button
               variant="contained"
@@ -525,7 +525,7 @@ export default function DataManagement({ collectionName, title }) {
                 '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.1)' },
               }}
             >
-              Add New
+              Ajouter
             </Button>
           </Box>
         </CardContent>
@@ -544,14 +544,14 @@ export default function DataManagement({ collectionName, title }) {
       >
         <TableContainer sx={{ maxHeight: 'calc(100vh - 280px)' }}>
           {!db ? (
-            <Alert severity="error" sx={{ m: 3 }}>Firestore database failed to initialize. Please check your configuration.</Alert>
+            <Alert severity="error" sx={{ m: 3 }}>Échec de l'initialisation de la base de données Firestore. Veuillez vérifier votre configuration.</Alert>
           ) : loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 8 }}>
               <CircularProgress />
             </Box>
           ) : data.length === 0 ? (
             <Box sx={{ textAlign: 'center', p: 8 }}>
-              <Typography color="text.secondary">No records found. Click "Add New" to create one.</Typography>
+              <Typography color="text.secondary">Aucun enregistrement trouvé. Cliquez sur "Ajouter" pour en créer un.</Typography>
             </Box>
           ) : (
             <Table stickyHeader>
@@ -592,12 +592,12 @@ export default function DataManagement({ collectionName, title }) {
                       </TableCell>
                     ))}
                     <TableCell align="right">
-                      <Tooltip title="Edit">
+                      <Tooltip title="Modifier">
                         <IconButton onClick={() => handleEdit(row)} size="small" sx={{ color: '#1976d2' }}>
                           <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Delete">
+                      <Tooltip title="Supprimer">
                         <IconButton onClick={() => handleDelete(row.id)} size="small" sx={{ color: '#d32f2f' }}>
                           <DeleteIcon fontSize="small" />
                         </IconButton>
@@ -630,7 +630,7 @@ export default function DataManagement({ collectionName, title }) {
         >
           <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6" fontWeight={700}>
-              {editingItem ? 'Edit Record' : 'Add New Record'}
+              {editingItem ? "Modifier l'enregistrement" : 'Ajouter un enregistrement'}
             </Typography>
             <IconButton onClick={() => setModalOpen(false)}>
               <CloseIcon />
@@ -655,7 +655,7 @@ export default function DataManagement({ collectionName, title }) {
                               size="small"
                               SelectProps={{ native: true }}
                             >
-                              <option value="">Select matricule</option>
+                              <option value="">Sélectionner un matricule</option>
                               {employeeOptions.map(emp => (
                                 <option key={emp.matricule || emp.id} value={emp.matricule || emp.id}>
                                   {`${emp.matricule || emp.id} - ${emp.nom || emp.name || ''}`}
@@ -665,7 +665,7 @@ export default function DataManagement({ collectionName, title }) {
 
                             <Box sx={{ mt: 2 }}>
                               <input type="file" accept="image/*" onChange={handleFileChange} />
-                              {file && <Typography variant="caption">Selected: {file.name}</Typography>}
+                              {file && <Typography variant="caption">Sélectionné : {file.name}</Typography>}
                             </Box>
                           </>
                         ) : (
@@ -678,7 +678,7 @@ export default function DataManagement({ collectionName, title }) {
                             required
                             disabled={!!editingItem}
                             size="small"
-                            helperText={editingItem ? "Matricule is the document ID and cannot be changed" : ""}
+                            helperText={editingItem ? "Le matricule est l'ID du document et ne peut pas être modifié" : ""}
                           />
                         )}
                     </Grid>
@@ -693,12 +693,12 @@ export default function DataManagement({ collectionName, title }) {
                                 onChange={handleInputChange}
                               />
                             }
-                            label="Active"
+                            label="Actif"
                           />
                         ) : col === 'dep' ? (
                           <Box>
                             <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                              Coordinates (Latitude, Longitude)
+                              Coordonnées (Latitude, Longitude)
                             </Typography>
                             <Box sx={{ display: 'flex', gap: 2 }}>
                               <TextField
@@ -745,7 +745,7 @@ export default function DataManagement({ collectionName, title }) {
                           onChange={handleInputChange}
                           required
                           disabled={!!editingItem}
-                          helperText={editingItem ? `${docIdRef.label} is the document ID and cannot be changed` : ""}
+                          helperText={editingItem ? `${docIdRef.label} est l'ID du document et ne peut pas être modifié` : ""}
                           size="small"
                         />
                       </Grid>
@@ -782,10 +782,10 @@ export default function DataManagement({ collectionName, title }) {
             </Box>
             <Box sx={{ p: 3, borderTop: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
               <Button variant="outlined" onClick={() => setModalOpen(false)} sx={{ borderRadius: 2, textTransform: 'none' }}>
-                Cancel
+                Annuler
               </Button>
               <Button type="submit" variant="contained" startIcon={<SaveIcon />} sx={{ borderRadius: 2, textTransform: 'none' }}>
-                {editingItem ? 'Update' : 'Add'}
+                {editingItem ? 'Mettre à jour' : 'Ajouter'}
               </Button>
             </Box>
           </form>
